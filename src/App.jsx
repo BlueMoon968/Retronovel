@@ -12,7 +12,9 @@ const VNEditor = () => {
         id: 1,
         background: "#2d5a3d",
         character: null,
+        characterImage: null,
         characterPosition: "center",
+        backgroundImage: null,
         dialogues: [
           {
             speaker: "Narratore",
@@ -49,11 +51,31 @@ const VNEditor = () => {
     if (!scene) return;
 
     // Draw background
-    ctx.fillStyle = scene.background;
-    ctx.fillRect(0, 0, width, height);
+    if (scene.backgroundImage) {
+      const img = new Image();
+      img.src = scene.backgroundImage;
+      ctx.drawImage(img, 0, 0, width, height);
+    } else {
+      ctx.fillStyle = scene.background;
+      ctx.fillRect(0, 0, width, height);
+    }
 
-    // Draw character placeholder (if exists)
-    if (scene.character) {
+    // Draw character
+    if (scene.characterImage) {
+      const img = new Image();
+      img.src = scene.characterImage;
+      const charWidth = 80;
+      const charHeight = 120;
+      let charX = (width - charWidth) / 2;
+      
+      if (scene.characterPosition === 'left') charX = 20;
+      if (scene.characterPosition === 'right') charX = width - charWidth - 20;
+      
+      img.onload = () => {
+        ctx.drawImage(img, charX, height - charHeight - 10, charWidth, charHeight);
+      };
+    } else if (scene.character) {
+      // Placeholder grigio
       ctx.fillStyle = '#4a4a4a';
       const charWidth = 64;
       const charHeight = 96;
@@ -223,14 +245,12 @@ const VNEditor = () => {
       position: relative;
       display: inline-block;
       image-rendering: pixelated;
-      image-rendering: crisp-edges;
     }
     canvas {
       display: block;
       border: 2px solid #333;
       cursor: pointer;
       image-rendering: pixelated;
-      image-rendering: crisp-edges;
     }
     @media (max-width: 600px) {
       canvas { max-width: 100vw; height: auto; }
@@ -386,6 +406,62 @@ const VNEditor = () => {
     reader.readAsText(file);
   };
 
+  // Upload character sprite
+  const uploadCharacter = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const newChar = {
+        id: Date.now(),
+        name: file.name.replace(/\.[^/.]+$/, ""),
+        data: e.target.result
+      };
+      setProject({
+        ...project,
+        characters: [...project.characters, newChar]
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Upload background
+  const uploadBackground = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const newBg = {
+        id: Date.now(),
+        name: file.name.replace(/\.[^/.]+$/, ""),
+        data: e.target.result
+      };
+      setProject({
+        ...project,
+        backgrounds: [...project.backgrounds, newBg]
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Delete character
+  const deleteCharacter = (id) => {
+    setProject({
+      ...project,
+      characters: project.characters.filter(c => c.id !== id)
+    });
+  };
+
+  // Delete background
+  const deleteBackground = (id) => {
+    setProject({
+      ...project,
+      backgrounds: project.backgrounds.filter(b => b.id !== id)
+    });
+  };
+
   const scene = project.scenes[currentSceneIndex];
 
   return (
@@ -432,7 +508,7 @@ const VNEditor = () => {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '4px', marginBottom: '16px' }}>
-          {['scenes', 'export'].map(tab => (
+          {['scenes', 'assets', 'export'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -545,6 +621,63 @@ const VNEditor = () => {
                   onChange={(e) => updateScene(currentSceneIndex, { background: e.target.value })}
                   style={{ width: '100%', height: '32px', marginBottom: '12px' }}
                 />
+
+                {project.backgrounds.length > 0 && (
+                  <>
+                    <label style={{ display: 'block', fontSize: '11px', marginTop: '12px', marginBottom: '4px' }}>
+                      Sfondo Immagine:
+                    </label>
+                    <select
+                      value={scene.backgroundImage || ''}
+                      onChange={(e) => updateScene(currentSceneIndex, { backgroundImage: e.target.value || null })}
+                      style={{
+                        width: '100%',
+                        padding: '6px',
+                        background: '#1a1a2e',
+                        border: '1px solid #4a5568',
+                        color: '#fff',
+                        fontSize: '11px',
+                        fontFamily: 'inherit',
+                        marginBottom: '12px'
+                      }}
+                    >
+                      <option value="">Nessuno (usa colore)</option>
+                      {project.backgrounds.map(bg => (
+                        <option key={bg.id} value={bg.data}>{bg.name}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
+
+                {project.characters.length > 0 && (
+                  <>
+                    <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px' }}>
+                      Sprite Personaggio:
+                    </label>
+                    <select
+                      value={scene.characterImage || ''}
+                      onChange={(e) => updateScene(currentSceneIndex, { 
+                        characterImage: e.target.value || null,
+                        character: e.target.value ? 'sprite' : null
+                      })}
+                      style={{
+                        width: '100%',
+                        padding: '6px',
+                        background: '#1a1a2e',
+                        border: '1px solid #4a5568',
+                        color: '#fff',
+                        fontSize: '11px',
+                        fontFamily: 'inherit',
+                        marginBottom: '12px'
+                      }}
+                    >
+                      <option value="">Nessuno</option>
+                      {project.characters.map(char => (
+                        <option key={char.id} value={char.data}>{char.name}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
 
                 <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px' }}>
                   Character Position:
@@ -681,6 +814,177 @@ const VNEditor = () => {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Assets Tab */}
+        {activeTab === 'assets' && (
+          <div>
+            {/* Characters Section */}
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '12px'
+              }}>
+                <h3 style={{ fontSize: '14px', color: '#f39c12' }}>Sprites Personaggi</h3>
+                <label style={{
+                  padding: '6px 12px',
+                  background: '#27ae60',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontFamily: 'inherit'
+                }}>
+                  + Upload
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={uploadCharacter}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                {project.characters.map(char => (
+                  <div
+                    key={char.id}
+                    style={{
+                      background: '#2a2a3e',
+                      border: '1px solid #4a5568',
+                      padding: '8px',
+                      position: 'relative'
+                    }}
+                  >
+                    <img
+                      src={char.data}
+                      alt={char.name}
+                      style={{
+                        width: '100%',
+                        height: '80px',
+                        objectFit: 'contain',
+                        marginBottom: '4px',
+                        imageRendering: 'pixelated'
+                      }}
+                    />
+                    <div style={{ fontSize: '10px', marginBottom: '4px' }}>{char.name}</div>
+                    <button
+                      onClick={() => deleteCharacter(char.id)}
+                      style={{
+                        width: '100%',
+                        padding: '4px',
+                        background: '#e74c3c',
+                        color: '#fff',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '10px',
+                        fontFamily: 'inherit'
+                      }}
+                    >
+                      Elimina
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {project.characters.length === 0 && (
+                <div style={{
+                  padding: '16px',
+                  background: '#2a2a3e',
+                  border: '1px dashed #4a5568',
+                  textAlign: 'center',
+                  fontSize: '11px',
+                  color: '#888'
+                }}>
+                  Nessuno sprite caricato
+                </div>
+              )}
+            </div>
+
+            {/* Backgrounds Section */}
+            <div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '12px'
+              }}>
+                <h3 style={{ fontSize: '14px', color: '#f39c12' }}>Sfondi</h3>
+                <label style={{
+                  padding: '6px 12px',
+                  background: '#27ae60',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontFamily: 'inherit'
+                }}>
+                  + Upload
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={uploadBackground}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                {project.backgrounds.map(bg => (
+                  <div
+                    key={bg.id}
+                    style={{
+                      background: '#2a2a3e',
+                      border: '1px solid #4a5568',
+                      padding: '8px',
+                      position: 'relative'
+                    }}
+                  >
+                    <img
+                      src={bg.data}
+                      alt={bg.name}
+                      style={{
+                        width: '100%',
+                        height: '60px',
+                        objectFit: 'cover',
+                        marginBottom: '4px',
+                        imageRendering: 'pixelated'
+                      }}
+                    />
+                    <div style={{ fontSize: '10px', marginBottom: '4px' }}>{bg.name}</div>
+                    <button
+                      onClick={() => deleteBackground(bg.id)}
+                      style={{
+                        width: '100%',
+                        padding: '4px',
+                        background: '#e74c3c',
+                        color: '#fff',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '10px',
+                        fontFamily: 'inherit'
+                      }}
+                    >
+                      Elimina
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {project.backgrounds.length === 0 && (
+                <div style={{
+                  padding: '16px',
+                  background: '#2a2a3e',
+                  border: '1px dashed #4a5568',
+                  textAlign: 'center',
+                  fontSize: '11px',
+                  color: '#888'
+                }}>
+                  Nessuno sfondo caricato
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -830,7 +1134,6 @@ const VNEditor = () => {
             style={{
               display: 'block',
               imageRendering: 'pixelated',
-              imageRendering: 'crisp-edges',
               width: '512px',
               height: '384px',
               cursor: isPlaying ? 'pointer' : 'default'
