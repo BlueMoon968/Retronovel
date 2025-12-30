@@ -17,8 +17,8 @@ const VNEditor = () => {
         backgroundImage: null,
         dialogues: [
           {
-            speaker: "Narratore",
-            text: "Benvenuto nel Visual Novel Editor!",
+            speaker: "Narrator",
+            text: "Welcome to the Visual Novel Editor!",
           }
         ],
         choices: []
@@ -30,7 +30,7 @@ const VNEditor = () => {
 
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0);
   const [currentDialogueIndex, setCurrentDialogueIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState('scenes'); // scenes, characters, settings
+  const [activeTab, setActiveTab] = useState('scenes');
   const [isPlaying, setIsPlaying] = useState(false);
   
   const canvasRef = useRef(null);
@@ -40,8 +40,11 @@ const VNEditor = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
     const [width, height] = project.resolution;
+    
+    // Disable image smoothing for pixel-perfect rendering
+    ctx.imageSmoothingEnabled = false;
     
     // Clear canvas
     ctx.fillStyle = '#000';
@@ -50,102 +53,114 @@ const VNEditor = () => {
     const scene = project.scenes[currentSceneIndex];
     if (!scene) return;
 
-    // Draw background
+    // LAYER 1: Draw background
     if (scene.backgroundImage) {
       const img = new Image();
       img.src = scene.backgroundImage;
-      ctx.drawImage(img, 0, 0, width, height);
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, width, height);
+        drawCharacter();
+      };
     } else {
       ctx.fillStyle = scene.background;
       ctx.fillRect(0, 0, width, height);
+      drawCharacter();
     }
 
-    // Draw character
-    if (scene.characterImage) {
-      const img = new Image();
-      img.src = scene.characterImage;
-      const charWidth = 80;
-      const charHeight = 120;
-      let charX = (width - charWidth) / 2;
-      
-      if (scene.characterPosition === 'left') charX = 20;
-      if (scene.characterPosition === 'right') charX = width - charWidth - 20;
-      
-      img.onload = () => {
-        ctx.drawImage(img, charX, height - charHeight - 10, charWidth, charHeight);
-      };
-    } else if (scene.character) {
-      // Placeholder grigio
-      ctx.fillStyle = '#4a4a4a';
-      const charWidth = 64;
-      const charHeight = 96;
-      let charX = (width - charWidth) / 2;
-      
-      if (scene.characterPosition === 'left') charX = 20;
-      if (scene.characterPosition === 'right') charX = width - charWidth - 20;
-      
-      ctx.fillRect(charX, height - charHeight - 50, charWidth, charHeight);
-    }
-
-    // Draw dialogue box
-    const dialogue = scene.dialogues[currentDialogueIndex];
-    if (dialogue) {
-      // Box background
-      ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
-      ctx.fillRect(8, height - 60, width - 16, 52);
-      
-      // Box border
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(8, height - 60, width - 16, 52);
-
-      // Speaker name
-      ctx.fillStyle = '#ffd700';
-      ctx.font = 'bold 10px monospace';
-      ctx.fillText(dialogue.speaker, 16, height - 48);
-
-      // Dialogue text
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '8px monospace';
-      
-      // Word wrap
-      const maxWidth = width - 32;
-      const words = dialogue.text.split(' ');
-      let line = '';
-      let y = height - 34;
-      const lineHeight = 12;
-
-      for (let word of words) {
-        const testLine = line + word + ' ';
-        const metrics = ctx.measureText(testLine);
+    function drawCharacter() {
+      // LAYER 2: Draw character
+      if (scene.characterImage) {
+        const img = new Image();
+        img.src = scene.characterImage;
+        const charWidth = 80;
+        const charHeight = 120;
+        let charX = (width - charWidth) / 2;
         
-        if (metrics.width > maxWidth && line !== '') {
-          ctx.fillText(line, 16, y);
-          line = word + ' ';
-          y += lineHeight;
-        } else {
-          line = testLine;
+        if (scene.characterPosition === 'left') charX = 20;
+        if (scene.characterPosition === 'right') charX = width - charWidth - 20;
+        
+        img.onload = () => {
+          ctx.drawImage(img, charX, height - charHeight - 10, charWidth, charHeight);
+          drawUI();
+        };
+      } else if (scene.character) {
+        // Placeholder
+        ctx.fillStyle = '#4a4a4a';
+        const charWidth = 64;
+        const charHeight = 96;
+        let charX = (width - charWidth) / 2;
+        
+        if (scene.characterPosition === 'left') charX = 20;
+        if (scene.characterPosition === 'right') charX = width - charWidth - 20;
+        
+        ctx.fillRect(charX, height - charHeight - 50, charWidth, charHeight);
+        drawUI();
+      } else {
+        drawUI();
+      }
+    }
+
+    function drawUI() {
+      // LAYER 3: Draw dialogue box (UI layer)
+      const dialogue = scene.dialogues[currentDialogueIndex];
+      if (dialogue) {
+        // Box background
+        ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
+        ctx.fillRect(8, height - 60, width - 16, 52);
+        
+        // Box border
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(8, height - 60, width - 16, 52);
+
+        // Speaker name
+        ctx.fillStyle = '#ffd700';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(dialogue.speaker, 16, height - 48);
+
+        // Dialogue text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '8px monospace';
+        
+        // Word wrap
+        const maxWidth = width - 32;
+        const words = dialogue.text.split(' ');
+        let line = '';
+        let y = height - 34;
+        const lineHeight = 12;
+
+        for (let word of words) {
+          const testLine = line + word + ' ';
+          const metrics = ctx.measureText(testLine);
+          
+          if (metrics.width > maxWidth && line !== '') {
+            ctx.fillText(line, 16, y);
+            line = word + ' ';
+            y += lineHeight;
+          } else {
+            line = testLine;
+          }
+        }
+        ctx.fillText(line, 16, y);
+
+        // Arrow indicator
+        if (currentDialogueIndex < scene.dialogues.length - 1 || currentSceneIndex < project.scenes.length - 1) {
+          ctx.fillStyle = '#ffd700';
+          ctx.beginPath();
+          ctx.moveTo(width - 20, height - 16);
+          ctx.lineTo(width - 16, height - 12);
+          ctx.lineTo(width - 20, height - 8);
+          ctx.fill();
         }
       }
-      ctx.fillText(line, 16, y);
 
-      // Arrow indicator
-      if (currentDialogueIndex < scene.dialogues.length - 1 || currentSceneIndex < project.scenes.length - 1) {
-        ctx.fillStyle = '#ffd700';
-        ctx.beginPath();
-        ctx.moveTo(width - 20, height - 16);
-        ctx.lineTo(width - 16, height - 12);
-        ctx.lineTo(width - 20, height - 8);
-        ctx.fill();
-      }
+      // Draw scene indicator
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(0, 0, 60, 16);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '8px monospace';
+      ctx.fillText(`Scene ${currentSceneIndex + 1}/${project.scenes.length}`, 4, 10);
     }
-
-    // Draw scene indicator
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(0, 0, 60, 16);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '8px monospace';
-    ctx.fillText(`Scene ${currentSceneIndex + 1}/${project.scenes.length}`, 4, 10);
 
   }, [project, currentSceneIndex, currentDialogueIndex]);
 
@@ -172,7 +187,9 @@ const VNEditor = () => {
         background: "#2d5a3d",
         character: null,
         characterPosition: "center",
-        dialogues: [{ speaker: "Narratore", text: "Nuovo dialogo..." }],
+        backgroundImage: null,
+        characterImage: null,
+        dialogues: [{ speaker: "Narrator", text: "New dialogue..." }],
         choices: []
       }]
     });
@@ -189,8 +206,8 @@ const VNEditor = () => {
   const addDialogue = (sceneIndex) => {
     const newScenes = [...project.scenes];
     newScenes[sceneIndex].dialogues.push({
-      speaker: "Personaggio",
-      text: "Nuovo dialogo..."
+      speaker: "Character",
+      text: "New dialogue..."
     });
     setProject({ ...project, scenes: newScenes });
   };
@@ -225,7 +242,7 @@ const VNEditor = () => {
   // Export HTML
   const exportHTML = () => {
     const html = `<!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -244,16 +261,29 @@ const VNEditor = () => {
     #game-container {
       position: relative;
       display: inline-block;
-      image-rendering: pixelated;
     }
     canvas {
       display: block;
       border: 2px solid #333;
       cursor: pointer;
+      width: 768px;
+      height: 576px;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: -webkit-crisp-edges;
       image-rendering: pixelated;
+      image-rendering: crisp-edges;
     }
-    @media (max-width: 600px) {
-      canvas { max-width: 100vw; height: auto; }
+    @media (max-width: 800px) {
+      canvas { 
+        width: 512px;
+        height: 384px;
+      }
+    }
+    @media (max-width: 550px) {
+      canvas { 
+        width: 100vw;
+        height: auto;
+      }
     }
   </style>
 </head>
@@ -267,7 +297,8 @@ const VNEditor = () => {
     let currentScene = 0;
     let currentDialogue = 0;
     const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.imageSmoothingEnabled = false;
     
     function render() {
       const [width, height] = gameData.resolution;
@@ -277,75 +308,106 @@ const VNEditor = () => {
       const scene = gameData.scenes[currentScene];
       if (!scene) return;
       
-      // Background
-      ctx.fillStyle = scene.background;
-      ctx.fillRect(0, 0, width, height);
-      
-      // Character
-      if (scene.character) {
-        ctx.fillStyle = '#4a4a4a';
-        const charWidth = 64;
-        const charHeight = 96;
-        let charX = (width - charWidth) / 2;
-        
-        if (scene.characterPosition === 'left') charX = 20;
-        if (scene.characterPosition === 'right') charX = width - charWidth - 20;
-        
-        ctx.fillRect(charX, height - charHeight - 50, charWidth, charHeight);
+      // LAYER 1: Background
+      if (scene.backgroundImage) {
+        const img = new Image();
+        img.src = scene.backgroundImage;
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, width, height);
+          drawCharacter();
+        };
+      } else {
+        ctx.fillStyle = scene.background;
+        ctx.fillRect(0, 0, width, height);
+        drawCharacter();
       }
       
-      // Dialogue
-      const dialogue = scene.dialogues[currentDialogue];
-      if (dialogue) {
-        ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
-        ctx.fillRect(8, height - 60, width - 16, 52);
-        
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(8, height - 60, width - 16, 52);
-        
-        ctx.fillStyle = '#ffd700';
-        ctx.font = 'bold 10px monospace';
-        ctx.fillText(dialogue.speaker, 16, height - 48);
-        
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '8px monospace';
-        
-        const maxWidth = width - 32;
-        const words = dialogue.text.split(' ');
-        let line = '';
-        let y = height - 34;
-        const lineHeight = 12;
-        
-        for (let word of words) {
-          const testLine = line + word + ' ';
-          const metrics = ctx.measureText(testLine);
+      function drawCharacter() {
+        // LAYER 2: Character
+        if (scene.characterImage) {
+          const img = new Image();
+          img.src = scene.characterImage;
+          const charWidth = 80;
+          const charHeight = 120;
+          let charX = (width - charWidth) / 2;
           
-          if (metrics.width > maxWidth && line !== '') {
-            ctx.fillText(line, 16, y);
-            line = word + ' ';
-            y += lineHeight;
-          } else {
-            line = testLine;
+          if (scene.characterPosition === 'left') charX = 20;
+          if (scene.characterPosition === 'right') charX = width - charWidth - 20;
+          
+          img.onload = () => {
+            ctx.drawImage(img, charX, height - charHeight - 10, charWidth, charHeight);
+            drawUI();
+          };
+        } else if (scene.character) {
+          ctx.fillStyle = '#4a4a4a';
+          const charWidth = 64;
+          const charHeight = 96;
+          let charX = (width - charWidth) / 2;
+          
+          if (scene.characterPosition === 'left') charX = 20;
+          if (scene.characterPosition === 'right') charX = width - charWidth - 20;
+          
+          ctx.fillRect(charX, height - charHeight - 50, charWidth, charHeight);
+          drawUI();
+        } else {
+          drawUI();
+        }
+      }
+      
+      function drawUI() {
+        // LAYER 3: Dialogue UI
+        const dialogue = scene.dialogues[currentDialogue];
+        if (dialogue) {
+          ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
+          ctx.fillRect(8, height - 60, width - 16, 52);
+          
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(8, height - 60, width - 16, 52);
+          
+          ctx.fillStyle = '#ffd700';
+          ctx.font = 'bold 10px monospace';
+          ctx.fillText(dialogue.speaker, 16, height - 48);
+          
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '8px monospace';
+          
+          const maxWidth = width - 32;
+          const words = dialogue.text.split(' ');
+          let line = '';
+          let y = height - 34;
+          const lineHeight = 12;
+          
+          for (let word of words) {
+            const testLine = line + word + ' ';
+            const metrics = ctx.measureText(testLine);
+            
+            if (metrics.width > maxWidth && line !== '') {
+              ctx.fillText(line, 16, y);
+              line = word + ' ';
+              y += lineHeight;
+            } else {
+              line = testLine;
+            }
+          }
+          ctx.fillText(line, 16, y);
+          
+          if (currentDialogue < scene.dialogues.length - 1 || currentScene < gameData.scenes.length - 1) {
+            ctx.fillStyle = '#ffd700';
+            ctx.beginPath();
+            ctx.moveTo(width - 20, height - 16);
+            ctx.lineTo(width - 16, height - 12);
+            ctx.lineTo(width - 20, height - 8);
+            ctx.fill();
           }
         }
-        ctx.fillText(line, 16, y);
         
-        if (currentDialogue < scene.dialogues.length - 1 || currentScene < gameData.scenes.length - 1) {
-          ctx.fillStyle = '#ffd700';
-          ctx.beginPath();
-          ctx.moveTo(width - 20, height - 16);
-          ctx.lineTo(width - 16, height - 12);
-          ctx.lineTo(width - 20, height - 8);
-          ctx.fill();
-        }
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(0, 0, 60, 16);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '8px monospace';
+        ctx.fillText('Scene ' + (currentScene + 1) + '/' + gameData.scenes.length, 4, 10);
       }
-      
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, 60, 16);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '8px monospace';
-      ctx.fillText('Scene ' + (currentScene + 1) + '/' + gameData.scenes.length, 4, 10);
     }
     
     canvas.addEventListener('click', () => {
@@ -400,7 +462,7 @@ const VNEditor = () => {
         setCurrentSceneIndex(0);
         setCurrentDialogueIndex(0);
       } catch (err) {
-        alert('Errore nel caricamento del file JSON');
+        alert('Error loading JSON file');
       }
     };
     reader.readAsText(file);
@@ -489,7 +551,7 @@ const VNEditor = () => {
             marginBottom: '8px',
             textTransform: 'uppercase',
             letterSpacing: '1px'
-          }}>VN Editor</h1>
+          }}>Retronovel</h1>
           <input
             type="text"
             value={project.title}
@@ -539,7 +601,7 @@ const VNEditor = () => {
               alignItems: 'center',
               marginBottom: '12px'
             }}>
-              <h3 style={{ fontSize: '14px', color: '#f39c12' }}>Scene</h3>
+              <h3 style={{ fontSize: '14px', color: '#f39c12' }}>Scenes</h3>
               <button
                 onClick={addScene}
                 style={{
@@ -552,7 +614,7 @@ const VNEditor = () => {
                   fontFamily: 'inherit'
                 }}
               >
-                + Nuova
+                + New
               </button>
             </div>
 
@@ -609,7 +671,7 @@ const VNEditor = () => {
                 marginBottom: '16px'
               }}>
                 <h4 style={{ fontSize: '12px', marginBottom: '8px', color: '#f39c12' }}>
-                  Proprietà Scene {currentSceneIndex + 1}
+                  Scene {currentSceneIndex + 1} Properties
                 </h4>
                 
                 <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px' }}>
@@ -625,7 +687,7 @@ const VNEditor = () => {
                 {project.backgrounds.length > 0 && (
                   <>
                     <label style={{ display: 'block', fontSize: '11px', marginTop: '12px', marginBottom: '4px' }}>
-                      Sfondo Immagine:
+                      Background Image:
                     </label>
                     <select
                       value={scene.backgroundImage || ''}
@@ -641,7 +703,7 @@ const VNEditor = () => {
                         marginBottom: '12px'
                       }}
                     >
-                      <option value="">Nessuno (usa colore)</option>
+                      <option value="">None (use color)</option>
                       {project.backgrounds.map(bg => (
                         <option key={bg.id} value={bg.data}>{bg.name}</option>
                       ))}
@@ -652,7 +714,7 @@ const VNEditor = () => {
                 {project.characters.length > 0 && (
                   <>
                     <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px' }}>
-                      Sprite Personaggio:
+                      Character Sprite:
                     </label>
                     <select
                       value={scene.characterImage || ''}
@@ -671,7 +733,7 @@ const VNEditor = () => {
                         marginBottom: '12px'
                       }}
                     >
-                      <option value="">Nessuno</option>
+                      <option value="">None</option>
                       {project.characters.map(char => (
                         <option key={char.id} value={char.data}>{char.name}</option>
                       ))}
@@ -696,9 +758,9 @@ const VNEditor = () => {
                     marginBottom: '12px'
                   }}
                 >
-                  <option value="left">Sinistra</option>
-                  <option value="center">Centro</option>
-                  <option value="right">Destra</option>
+                  <option value="left">Left</option>
+                  <option value="center">Center</option>
+                  <option value="right">Right</option>
                 </select>
 
                 <label style={{ display: 'flex', alignItems: 'center', fontSize: '11px' }}>
@@ -710,7 +772,7 @@ const VNEditor = () => {
                     })}
                     style={{ marginRight: '8px' }}
                   />
-                  Mostra Personaggio
+                  Show Character Placeholder
                 </label>
               </div>
             )}
@@ -724,7 +786,7 @@ const VNEditor = () => {
                   alignItems: 'center',
                   marginBottom: '8px'
                 }}>
-                  <h4 style={{ fontSize: '12px', color: '#f39c12' }}>Dialoghi</h4>
+                  <h4 style={{ fontSize: '12px', color: '#f39c12' }}>Dialogues</h4>
                   <button
                     onClick={() => addDialogue(currentSceneIndex)}
                     style={{
@@ -737,7 +799,7 @@ const VNEditor = () => {
                       fontFamily: 'inherit'
                     }}
                   >
-                    + Dialogo
+                    + Dialogue
                   </button>
                 </div>
 
@@ -757,7 +819,7 @@ const VNEditor = () => {
                       marginBottom: '8px'
                     }}>
                       <span style={{ fontSize: '11px', color: '#f39c12' }}>
-                        Dialogo {dIdx + 1}
+                        Dialogue {dIdx + 1}
                       </span>
                       {scene.dialogues.length > 1 && (
                         <button
@@ -797,7 +859,7 @@ const VNEditor = () => {
                     <textarea
                       value={dialogue.text}
                       onChange={(e) => updateDialogue(currentSceneIndex, dIdx, 'text', e.target.value)}
-                      placeholder="Testo del dialogo..."
+                      placeholder="Dialogue text..."
                       rows="3"
                       style={{
                         width: '100%',
@@ -828,7 +890,7 @@ const VNEditor = () => {
                 alignItems: 'center',
                 marginBottom: '12px'
               }}>
-                <h3 style={{ fontSize: '14px', color: '#f39c12' }}>Sprites Personaggi</h3>
+                <h3 style={{ fontSize: '14px', color: '#f39c12' }}>Character Sprites</h3>
                 <label style={{
                   padding: '6px 12px',
                   background: '#27ae60',
@@ -883,7 +945,7 @@ const VNEditor = () => {
                         fontFamily: 'inherit'
                       }}
                     >
-                      Elimina
+                      Delete
                     </button>
                   </div>
                 ))}
@@ -898,7 +960,7 @@ const VNEditor = () => {
                   fontSize: '11px',
                   color: '#888'
                 }}>
-                  Nessuno sprite caricato
+                  No sprites uploaded
                 </div>
               )}
             </div>
@@ -911,7 +973,7 @@ const VNEditor = () => {
                 alignItems: 'center',
                 marginBottom: '12px'
               }}>
-                <h3 style={{ fontSize: '14px', color: '#f39c12' }}>Sfondi</h3>
+                <h3 style={{ fontSize: '14px', color: '#f39c12' }}>Backgrounds</h3>
                 <label style={{
                   padding: '6px 12px',
                   background: '#27ae60',
@@ -966,7 +1028,7 @@ const VNEditor = () => {
                         fontFamily: 'inherit'
                       }}
                     >
-                      Elimina
+                      Delete
                     </button>
                   </div>
                 ))}
@@ -981,7 +1043,7 @@ const VNEditor = () => {
                   fontSize: '11px',
                   color: '#888'
                 }}>
-                  Nessuno sfondo caricato
+                  No backgrounds uploaded
                 </div>
               )}
             </div>
@@ -1010,7 +1072,7 @@ const VNEditor = () => {
                 fontFamily: 'inherit'
               }}
             >
-              📦 Esporta HTML
+              📦 Export HTML
             </button>
             
             <button
@@ -1028,7 +1090,7 @@ const VNEditor = () => {
                 fontFamily: 'inherit'
               }}
             >
-              💾 Esporta JSON
+              💾 Export JSON
             </button>
             
             <label style={{
@@ -1044,7 +1106,7 @@ const VNEditor = () => {
               fontWeight: 'bold',
               fontFamily: 'inherit'
             }}>
-              📁 Importa JSON
+              📁 Import JSON
               <input
                 type="file"
                 accept=".json"
@@ -1063,9 +1125,9 @@ const VNEditor = () => {
             }}>
               <strong style={{ color: '#3498db' }}>💡 Info:</strong>
               <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
-                <li>Esporta HTML per un file standalone</li>
-                <li>Esporta JSON per salvare/condividere</li>
-                <li>Importa JSON per caricare progetti</li>
+                <li>Export HTML for a standalone file</li>
+                <li>Export JSON to save/share projects</li>
+                <li>Import JSON to load saved projects</li>
               </ul>
             </div>
           </div>
@@ -1117,7 +1179,7 @@ const VNEditor = () => {
             fontSize: '11px'
           }}>
             Scene {currentSceneIndex + 1} / {project.scenes.length} • 
-            Dialogo {currentDialogueIndex + 1} / {scene?.dialogues.length || 0}
+            Dialogue {currentDialogueIndex + 1} / {scene?.dialogues.length || 0}
           </div>
         </div>
 
@@ -1133,9 +1195,9 @@ const VNEditor = () => {
             onClick={handleCanvasClick}
             style={{
               display: 'block',
+              width: '768px',
+              height: '576px',
               imageRendering: 'pixelated',
-              width: '512px',
-              height: '384px',
               cursor: isPlaying ? 'pointer' : 'default'
             }}
           />
@@ -1147,7 +1209,7 @@ const VNEditor = () => {
           color: '#aaa',
           textAlign: 'center'
         }}>
-          {isPlaying ? 'Clicca sulla preview per avanzare' : 'Premi Play per testare la visual novel'}
+          {isPlaying ? 'Click on preview to advance' : 'Press Play to test your visual novel'}
         </div>
       </div>
     </div>

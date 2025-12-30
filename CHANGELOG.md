@@ -1,42 +1,76 @@
 # Changelog
 
-Tutte le modifiche notevoli a questo progetto saranno documentate in questo file.
+All notable changes to this project will be documented in this file.
+
+## [0.2.1] - 2024-12-30
+
+### Fixed
+- 🐛 **MAJOR FIX:** Crisp pixel-perfect rendering at native resolution
+- 🎨 Canvas now renders at native 256×192 and scales via CSS to 768×576 (3×)
+- 📐 Removed all internal scaling logic for cleaner code
+- 🖼️ Added proper `image-rendering: pixelated` CSS for all browsers
+- ✨ Text is now sharp and perfectly readable
+
+### Technical Changes
+- Canvas native resolution: 256×192
+- Display size: 768×576 (3× scale via CSS)
+- Removed `ctx.scale()` complexity
+- Added cross-browser image-rendering CSS
+
+---
+
+## [0.2.0] - 2024-12-30
+
+### Added
+- ✨ Asset Manager with image upload (sprites & backgrounds)
+- ✨ Sprite library for character management
+- ✨ Background library for scene backgrounds
+- 🌍 Full English localization
+
+### Fixed
+- 🐛 Fixed sprite rendering order (now: Background → Sprites → UI)
+- 🐛 Fixed blurry text in canvas preview
+- 🐛 Improved pixel-perfect rendering with `imageSmoothingEnabled = false`
+
+### Changed
+- 📝 All UI text now in English
+- 🎨 Updated example projects to English
+
+---
 
 ## [0.1.0] - 2024-12-30
 
-### Aggiunto
-- ✨ Editor base con gestione scene multiple
-- ✨ Sistema di dialoghi con speaker e testo
-- ✨ Anteprima live a 256×192 pixel (NDS)
-- ✨ Modalità Play per testare la visual novel
-- ✨ Export HTML standalone
-- ✨ Export/Import progetti in formato JSON
-- ✨ Rendering pixel-perfect in stile retro
-- ✨ Word-wrapping automatico per i dialoghi
-- ✨ Gestione posizioni personaggi (sinistra/centro/destra)
-- ✨ Personalizzazione colore background per scene
-- ✨ Indicatori progresso (scena e dialogo corrente)
-- 📁 Esempi di progetti inclusi (mystery-demo, school-demo)
+### Added
+- ✨ Base editor with multiple scene management
+- ✨ Dialogue system with speaker and text
+- ✨ Live preview at 256×192 pixels (NDS)
+- ✨ Play mode to test visual novels
+- ✨ Standalone HTML export
+- ✨ Project export/import in JSON format
+- ✨ Pixel-perfect retro rendering
+- ✨ Automatic word-wrapping for dialogues
+- ✨ Character position management (left/center/right)
+- ✨ Custom background color per scene
+- ✨ Progress indicators (current scene and dialogue)
+- 📁 Example projects included (mystery-demo, school-demo)
 
-### Caratteristiche Tecniche
-- React 18 con hooks
-- Vite come build tool
-- Canvas API per rendering
-- Formato dati JSON semplificato (Bitsy-style)
-- UI responsive con pannelli laterali
+### Technical Features
+- React 18 with hooks
+- Vite as build tool
+- Canvas API for rendering
+- Simplified JSON data format (Bitsy-style)
+- Responsive UI with side panels
 
-### Note
-Questa è la versione alpha iniziale. Molte feature sono in fase di sviluppo.
+### Notes
+This is the initial alpha release. Many features are in development.
 
 ---
 
 ## [Unreleased]
 
-### In Programma
-- Sprite Editor integrato
-- Background Manager con upload
-- Sistema di scelte (branching)
-- Transizioni tra scene
+### Planned
+- Branching system (choices)
+- Scene transitions
 - Audio (BGM + SFX)
-- Animazioni personaggi
+- Character animations
 - Text effects

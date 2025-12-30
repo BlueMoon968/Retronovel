@@ -1,5 +1,5 @@
 {
-  "title": "Il Mistero della Villa",
+  "title": "The Villa Mystery",
   "resolution": [256, 192],
   "scenes": [
     {
@@ -7,14 +7,16 @@
       "background": "#1a1a2e",
       "character": "placeholder",
       "characterPosition": "center",
+      "backgroundImage": null,
+      "characterImage": null,
       "dialogues": [
         {
-          "speaker": "Narratore",
-          "text": "Una notte tempestosa. La pioggia batte contro i vetri della vecchia villa..."
+          "speaker": "Narrator",
+          "text": "A stormy night. Rain beats against the windows of the old villa..."
         },
         {
           "speaker": "Detective Kane",
-          "text": "Qualcosa non quadra in questa casa. Posso sentirlo."
+          "text": "Something doesn't add up in this house. I can feel it."
         }
       ],
       "choices": []
@@ -24,18 +26,20 @@
       "background": "#3d2a1a",
       "character": "placeholder",
       "characterPosition": "left",
+      "backgroundImage": null,
+      "characterImage": null,
       "dialogues": [
         {
-          "speaker": "Maggiordomo",
-          "text": "Benvenuto, Detective. La padrona di casa vi aspetta nella biblioteca."
+          "speaker": "Butler",
+          "text": "Welcome, Detective. The lady of the house awaits you in the library."
         },
         {
           "speaker": "Detective Kane",
-          "text": "Grazie. Ma prima, ho alcune domande da farle..."
+          "text": "Thank you. But first, I have some questions for you..."
         },
         {
-          "speaker": "Maggiordomo",
-          "text": "Naturalmente. Sono qui per collaborare."
+          "speaker": "Butler",
+          "text": "Of course. I'm here to cooperate."
         }
       ],
       "choices": []
@@ -45,18 +49,20 @@
       "background": "#2d1f1f",
       "character": "placeholder",
       "characterPosition": "right",
+      "backgroundImage": null,
+      "characterImage": null,
       "dialogues": [
         {
           "speaker": "Lady Blackwood",
-          "text": "Detective Kane, che piacere rivederla. Anche se le circostanze sono... spiacevoli."
+          "text": "Detective Kane, what a pleasure to see you again. Although the circumstances are... unpleasant."
         },
         {
           "speaker": "Detective Kane",
-          "text": "Lady Blackwood. Mi dispiace per la perdita. Parliamo del ritrovamento."
+          "text": "Lady Blackwood. I'm sorry for your loss. Let's talk about the discovery."
         },
         {
           "speaker": "Lady Blackwood",
-          "text": "Il corpo è stato trovato nella serra questa mattina. È terribile..."
+          "text": "The body was found in the greenhouse this morning. It's terrible..."
         }
       ],
       "choices": []
@@ -66,18 +72,20 @@
       "background": "#1f2d1f",
       "character": null,
       "characterPosition": "center",
+      "backgroundImage": null,
+      "characterImage": null,
       "dialogues": [
         {
-          "speaker": "Narratore",
-          "text": "La serra. Un luogo di bellezza ora macchiato dalla tragedia."
+          "speaker": "Narrator",
+          "text": "The greenhouse. A place of beauty now stained by tragedy."
         },
         {
           "speaker": "Detective Kane",
-          "text": "Le impronte... portano verso il giardino posteriore."
+          "text": "The footprints... they lead to the back garden."
         },
         {
-          "speaker": "Narratore",
-          "text": "Il mistero si infittisce. Chi è il colpevole?"
+          "speaker": "Narrator",
+          "text": "The mystery thickens. Who is the culprit?"
         }
       ],
       "choices": []
@@ -87,18 +95,20 @@
       "background": "#0f0f1f",
       "character": "placeholder",
       "characterPosition": "center",
+      "backgroundImage": null,
+      "characterImage": null,
       "dialogues": [
         {
           "speaker": "Detective Kane",
-          "text": "Ho raccolto tutti gli indizi. È tempo di risolvere questo caso."
+          "text": "I've collected all the clues. It's time to solve this case."
         },
         {
-          "speaker": "Narratore",
-          "text": "IL MISTERO CONTINUA..."
+          "speaker": "Narrator",
+          "text": "THE MYSTERY CONTINUES..."
         },
         {
-          "speaker": "Narratore",
-          "text": "Grazie per aver giocato a questa demo di Retronovel!"
+          "speaker": "Narrator",
+          "text": "Thanks for playing this Retronovel demo!"
         }
       ],
       "choices": []

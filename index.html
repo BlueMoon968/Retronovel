@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Retronovel - Visual Novel Editor</title>
-    <meta name="description" content="Crea visual novel in stile GBA/NDS direttamente nel browser" />
+    <meta name="description" content="Create GBA/NDS style visual novels directly in the browser" />
     <style>
       * {
         margin: 0;
@@ -19,6 +19,12 @@
       #root {
         width: 100vw;
         height: 100vh;
+      }
+      canvas {
+        image-rendering: -moz-crisp-edges;
+        image-rendering: -webkit-crisp-edges;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
       }
     </style>
   </head>

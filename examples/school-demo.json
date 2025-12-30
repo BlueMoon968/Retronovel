@@ -1,5 +1,5 @@
 {
-  "title": "Primo Giorno di Scuola",
+  "title": "First Day of School",
   "resolution": [256, 192],
   "scenes": [
     {
@@ -7,10 +7,12 @@
       "background": "#87ceeb",
       "character": null,
       "characterPosition": "center",
+      "backgroundImage": null,
+      "characterImage": null,
       "dialogues": [
         {
-          "speaker": "Narratore",
-          "text": "È il primo giorno di scuola. Il sole splende e una nuova avventura ti aspetta!"
+          "speaker": "Narrator",
+          "text": "It's the first day of school. The sun is shining and a new adventure awaits you!"
         }
       ],
       "choices": []
@@ -20,18 +22,20 @@
       "background": "#f5deb3",
       "character": "placeholder",
       "characterPosition": "center",
+      "backgroundImage": null,
+      "characterImage": null,
       "dialogues": [
         {
           "speaker": "Yuki",
-          "text": "Ciao! Sei nuovo qui? Mi chiamo Yuki!"
+          "text": "Hi! Are you new here? My name is Yuki!"
         },
         {
-          "speaker": "Protagonista",
-          "text": "Piacere, Yuki! Sì, è il mio primo giorno."
+          "speaker": "Protagonist",
+          "text": "Nice to meet you, Yuki! Yes, it's my first day."
         },
         {
           "speaker": "Yuki",
-          "text": "Fantastico! Ti faccio vedere la scuola?"
+          "text": "Awesome! Want me to show you around the school?"
         }
       ],
       "choices": []
@@ -41,14 +45,16 @@
       "background": "#98d8c8",
       "character": "placeholder",
       "characterPosition": "left",
+      "backgroundImage": null,
+      "characterImage": null,
       "dialogues": [
         {
           "speaker": "Yuki",
-          "text": "Questa è l'aula 2-B. Saremo compagni di classe!"
+          "text": "This is classroom 2-B. We'll be classmates!"
         },
         {
-          "speaker": "Protagonista",
-          "text": "Che fortuna! Almeno conosco già qualcuno."
+          "speaker": "Protagonist",
+          "text": "That's lucky! At least I already know someone."
         }
       ],
       "choices": []
@@ -58,14 +64,16 @@
       "background": "#ffd700",
       "character": "placeholder",
       "characterPosition": "center",
+      "backgroundImage": null,
+      "characterImage": null,
       "dialogues": [
         {
-          "speaker": "Narratore",
-          "text": "E così inizia una nuova amicizia..."
+          "speaker": "Narrator",
+          "text": "And so a new friendship begins..."
         },
         {
-          "speaker": "Narratore",
-          "text": "FINE DEMO - Creato con Retronovel"
+          "speaker": "Narrator",
+          "text": "END DEMO - Created with Retronovel"
         }
       ],
       "choices": []
