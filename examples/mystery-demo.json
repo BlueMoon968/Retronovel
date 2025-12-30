@@ -1,0 +1,109 @@
+{
+  "title": "Il Mistero della Villa",
+  "resolution": [256, 192],
+  "scenes": [
+    {
+      "id": 1,
+      "background": "#1a1a2e",
+      "character": "placeholder",
+      "characterPosition": "center",
+      "dialogues": [
+        {
+          "speaker": "Narratore",
+          "text": "Una notte tempestosa. La pioggia batte contro i vetri della vecchia villa..."
+        },
+        {
+          "speaker": "Detective Kane",
+          "text": "Qualcosa non quadra in questa casa. Posso sentirlo."
+        }
+      ],
+      "choices": []
+    },
+    {
+      "id": 2,
+      "background": "#3d2a1a",
+      "character": "placeholder",
+      "characterPosition": "left",
+      "dialogues": [
+        {
+          "speaker": "Maggiordomo",
+          "text": "Benvenuto, Detective. La padrona di casa vi aspetta nella biblioteca."
+        },
+        {
+          "speaker": "Detective Kane",
+          "text": "Grazie. Ma prima, ho alcune domande da farle..."
+        },
+        {
+          "speaker": "Maggiordomo",
+          "text": "Naturalmente. Sono qui per collaborare."
+        }
+      ],
+      "choices": []
+    },
+    {
+      "id": 3,
+      "background": "#2d1f1f",
+      "character": "placeholder",
+      "characterPosition": "right",
+      "dialogues": [
+        {
+          "speaker": "Lady Blackwood",
+          "text": "Detective Kane, che piacere rivederla. Anche se le circostanze sono... spiacevoli."
+        },
+        {
+          "speaker": "Detective Kane",
+          "text": "Lady Blackwood. Mi dispiace per la perdita. Parliamo del ritrovamento."
+        },
+        {
+          "speaker": "Lady Blackwood",
+          "text": "Il corpo è stato trovato nella serra questa mattina. È terribile..."
+        }
+      ],
+      "choices": []
+    },
+    {
+      "id": 4,
+      "background": "#1f2d1f",
+      "character": null,
+      "characterPosition": "center",
+      "dialogues": [
+        {
+          "speaker": "Narratore",
+          "text": "La serra. Un luogo di bellezza ora macchiato dalla tragedia."
+        },
+        {
+          "speaker": "Detective Kane",
+          "text": "Le impronte... portano verso il giardino posteriore."
+        },
+        {
+          "speaker": "Narratore",
+          "text": "Il mistero si infittisce. Chi è il colpevole?"
+        }
+      ],
+      "choices": []
+    },
+    {
+      "id": 5,
+      "background": "#0f0f1f",
+      "character": "placeholder",
+      "characterPosition": "center",
+      "dialogues": [
+        {
+          "speaker": "Detective Kane",
+          "text": "Ho raccolto tutti gli indizi. È tempo di risolvere questo caso."
+        },
+        {
+          "speaker": "Narratore",
+          "text": "IL MISTERO CONTINUA..."
+        },
+        {
+          "speaker": "Narratore",
+          "text": "Grazie per aver giocato a questa demo di Retronovel!"
+        }
+      ],
+      "choices": []
+    }
+  ],
+  "characters": [],
+  "backgrounds": []
+}

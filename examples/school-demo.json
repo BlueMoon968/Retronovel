@@ -1,0 +1,76 @@
+{
+  "title": "Primo Giorno di Scuola",
+  "resolution": [256, 192],
+  "scenes": [
+    {
+      "id": 1,
+      "background": "#87ceeb",
+      "character": null,
+      "characterPosition": "center",
+      "dialogues": [
+        {
+          "speaker": "Narratore",
+          "text": "È il primo giorno di scuola. Il sole splende e una nuova avventura ti aspetta!"
+        }
+      ],
+      "choices": []
+    },
+    {
+      "id": 2,
+      "background": "#f5deb3",
+      "character": "placeholder",
+      "characterPosition": "center",
+      "dialogues": [
+        {
+          "speaker": "Yuki",
+          "text": "Ciao! Sei nuovo qui? Mi chiamo Yuki!"
+        },
+        {
+          "speaker": "Protagonista",
+          "text": "Piacere, Yuki! Sì, è il mio primo giorno."
+        },
+        {
+          "speaker": "Yuki",
+          "text": "Fantastico! Ti faccio vedere la scuola?"
+        }
+      ],
+      "choices": []
+    },
+    {
+      "id": 3,
+      "background": "#98d8c8",
+      "character": "placeholder",
+      "characterPosition": "left",
+      "dialogues": [
+        {
+          "speaker": "Yuki",
+          "text": "Questa è l'aula 2-B. Saremo compagni di classe!"
+        },
+        {
+          "speaker": "Protagonista",
+          "text": "Che fortuna! Almeno conosco già qualcuno."
+        }
+      ],
+      "choices": []
+    },
+    {
+      "id": 4,
+      "background": "#ffd700",
+      "character": "placeholder",
+      "characterPosition": "center",
+      "dialogues": [
+        {
+          "speaker": "Narratore",
+          "text": "E così inizia una nuova amicizia..."
+        },
+        {
+          "speaker": "Narratore",
+          "text": "FINE DEMO - Creato con Retronovel"
+        }
+      ],
+      "choices": []
+    }
+  ],
+  "characters": [],
+  "backgrounds": []
+}
