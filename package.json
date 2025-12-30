@@ -1,6 +1,6 @@
 {
   "name": "retronovel",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Visual Novel Editor in stile GBA/NDS - Crea visual novel retro direttamente nel browser",
   "private": true,
   "type": "module",

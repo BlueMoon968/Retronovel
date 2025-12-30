@@ -1,19 +1,28 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <link rel="preload" href="/fonts/dogica.ttf" as="font" type="font/ttf" crossorigin>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Retronovel - Visual Novel Editor</title>
     <meta name="description" content="Create GBA/NDS style visual novels directly in the browser" />
     <style>
+      @font-face {
+        font-family: 'dogica';
+        src: url('/fonts/dogica.ttf') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+        font-display: block;
+      }
+      
       * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
       }
       body {
-        font-family: 'Courier New', monospace;
+        font-family: 'dogica', 'Courier New', monospace;
         overflow: hidden;
       }
       #root {

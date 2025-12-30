@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2024-12-30
+
+### 🎨 THE FONT FIX - PIXEL PERFECT TEXT!
+- ✨ **NEW:** Dogica bitmap font for crystal-clear text
+- ✨ **NEW:** Viewport scale selector (1×, 2×, 3×, 4×)
+- ✨ **NEW:** Custom font upload in Settings tab
+- ✨ **NEW:** Settings tab for global preferences
+- 🎯 Text is now TRULY pixel-perfect with proper bitmap font
+- 📐 User can choose display scale (affects editor + export)
+- 🎨 Font settings persist in JSON export/import
+
+### Technical
+- Added @font-face for dogica.ttf in index.html
+- New `settings` object in project structure
+- Scale setting affects canvas CSS dimensions
+- Custom font support via base64 encoding
+- Backward compatible with old project files
+
+---
+
 ## [0.2.1] - 2024-12-30
 
 ### Fixed

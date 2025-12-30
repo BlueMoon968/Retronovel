@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// Visual Novel Editor - GBA/NDS Style
+// Retronovel Editor - GBA/NDS Style
 // Resolution: 256x192 (NDS single screen)
 
 const VNEditor = () => {
   const [project, setProject] = useState({
     title: "My Visual Novel",
     resolution: [256, 192],
+    settings: {
+      scale: 2,           // Viewport scale (1-4)
+      fontFamily: 'dogica, monospace',
+      customFont: null    // Base64 encoded custom font
+    },
     scenes: [
       {
         id: 1,
@@ -18,7 +23,7 @@ const VNEditor = () => {
         dialogues: [
           {
             speaker: "Narrator",
-            text: "Welcome to the Visual Novel Editor!",
+            text: "Welcome to the Retronovel Editor!",
           }
         ],
         choices: []
@@ -34,6 +39,18 @@ const VNEditor = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   
   const canvasRef = useRef(null);
+  const fontFaceRef = useRef(null);
+
+  // Load custom font if available
+  useEffect(() => {
+    if (project.settings.customFont && !fontFaceRef.current) {
+      const fontFace = new FontFace('CustomFont', `url(${project.settings.customFont})`);
+      fontFace.load().then((loadedFont) => {
+        document.fonts.add(loadedFont);
+        fontFaceRef.current = loadedFont;
+      });
+    }
+  }, [project.settings.customFont]);
 
   // Render the preview
   useEffect(() => {
@@ -113,14 +130,17 @@ const VNEditor = () => {
         ctx.lineWidth = 2;
         ctx.strokeRect(8, height - 60, width - 16, 52);
 
+        // Use project font setting
+        const fontFamily = project.settings.customFont ? 'CustomFont, dogica, monospace' : 'dogica, monospace';
+        
         // Speaker name
         ctx.fillStyle = '#ffd700';
-        ctx.font = 'bold 10px monospace';
+        ctx.font = `bold 8px ${fontFamily}`;
         ctx.fillText(dialogue.speaker, 16, height - 48);
 
         // Dialogue text
         ctx.fillStyle = '#ffffff';
-        ctx.font = '8px monospace';
+        ctx.font = `8px ${fontFamily}`;
         
         // Word wrap
         const maxWidth = width - 32;
@@ -158,7 +178,7 @@ const VNEditor = () => {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
       ctx.fillRect(0, 0, 60, 16);
       ctx.fillStyle = '#ffffff';
-      ctx.font = '8px monospace';
+      ctx.font = `8px ${project.settings.customFont ? 'CustomFont, dogica, monospace' : 'dogica, monospace'}`;
       ctx.fillText(`Scene ${currentSceneIndex + 1}/${project.scenes.length}`, 4, 10);
     }
 
@@ -239,8 +259,38 @@ const VNEditor = () => {
     }
   };
 
+  // Upload custom font
+  const uploadFont = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setProject({
+        ...project,
+        settings: {
+          ...project.settings,
+          customFont: e.target.result,
+          fontFamily: 'CustomFont, dogica, monospace'
+        }
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Export HTML
   const exportHTML = () => {
+    const scale = project.settings.scale;
+    const displayWidth = 256 * scale;
+    const displayHeight = 192 * scale;
+    
+    const fontFaceCSS = project.settings.customFont 
+      ? `@font-face {
+        font-family: 'CustomFont';
+        src: url('${project.settings.customFont}');
+      }`
+      : '';
+
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -248,6 +298,12 @@ const VNEditor = () => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${project.title}</title>
   <style>
+    @font-face {
+      font-family: 'dogica';
+      src: url('https://fonts.cdnfonts.com/s/37581/dogica.woff') format('woff');
+    }
+    ${fontFaceCSS}
+    
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       background: #000;
@@ -255,7 +311,7 @@ const VNEditor = () => {
       justify-content: center;
       align-items: center;
       min-height: 100vh;
-      font-family: monospace;
+      font-family: dogica, monospace;
       overflow: hidden;
     }
     #game-container {
@@ -266,20 +322,14 @@ const VNEditor = () => {
       display: block;
       border: 2px solid #333;
       cursor: pointer;
-      width: 768px;
-      height: 576px;
+      width: ${displayWidth}px;
+      height: ${displayHeight}px;
       image-rendering: -moz-crisp-edges;
       image-rendering: -webkit-crisp-edges;
       image-rendering: pixelated;
       image-rendering: crisp-edges;
     }
-    @media (max-width: 800px) {
-      canvas { 
-        width: 512px;
-        height: 384px;
-      }
-    }
-    @media (max-width: 550px) {
+    @media (max-width: ${displayWidth + 40}px) {
       canvas { 
         width: 100vw;
         height: auto;
@@ -299,6 +349,8 @@ const VNEditor = () => {
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d', { alpha: false });
     ctx.imageSmoothingEnabled = false;
+    
+    const fontFamily = gameData.settings.customFont ? 'CustomFont, dogica, monospace' : 'dogica, monospace';
     
     function render() {
       const [width, height] = gameData.resolution;
@@ -366,11 +418,11 @@ const VNEditor = () => {
           ctx.strokeRect(8, height - 60, width - 16, 52);
           
           ctx.fillStyle = '#ffd700';
-          ctx.font = 'bold 10px monospace';
+          ctx.font = 'bold 10px ' + fontFamily;
           ctx.fillText(dialogue.speaker, 16, height - 48);
           
           ctx.fillStyle = '#ffffff';
-          ctx.font = '8px monospace';
+          ctx.font = '8px ' + fontFamily;
           
           const maxWidth = width - 32;
           const words = dialogue.text.split(' ');
@@ -405,7 +457,7 @@ const VNEditor = () => {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
         ctx.fillRect(0, 0, 60, 16);
         ctx.fillStyle = '#ffffff';
-        ctx.font = '8px monospace';
+        ctx.font = '8px ' + fontFamily;
         ctx.fillText('Scene ' + (currentScene + 1) + '/' + gameData.scenes.length, 4, 10);
       }
     }
@@ -458,6 +510,14 @@ const VNEditor = () => {
     reader.onload = (e) => {
       try {
         const imported = JSON.parse(e.target.result);
+        // Ensure settings exist for backward compatibility
+        if (!imported.settings) {
+          imported.settings = {
+            scale: 2,
+            fontFamily: 'dogica, monospace',
+            customFont: null
+          };
+        }
         setProject(imported);
         setCurrentSceneIndex(0);
         setCurrentDialogueIndex(0);
@@ -525,6 +585,8 @@ const VNEditor = () => {
   };
 
   const scene = project.scenes[currentSceneIndex];
+  const displayWidth = 256 * project.settings.scale;
+  const displayHeight = 192 * project.settings.scale;
 
   return (
     <div style={{
@@ -570,18 +632,18 @@ const VNEditor = () => {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '4px', marginBottom: '16px' }}>
-          {['scenes', 'assets', 'export'].map(tab => (
+          {['scenes', 'assets', 'settings', 'export'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               style={{
                 flex: 1,
-                padding: '8px',
+                padding: '8px 4px',
                 background: activeTab === tab ? '#f39c12' : '#2a2a3e',
                 color: activeTab === tab ? '#000' : '#fff',
                 border: 'none',
                 cursor: 'pointer',
-                fontSize: '11px',
+                fontSize: '10px',
                 textTransform: 'uppercase',
                 fontWeight: 'bold',
                 fontFamily: 'inherit'
@@ -1050,6 +1112,129 @@ const VNEditor = () => {
           </div>
         )}
 
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div>
+            <h3 style={{ fontSize: '14px', color: '#f39c12', marginBottom: '16px' }}>
+              Settings
+            </h3>
+
+            {/* Viewport Scale */}
+            <div style={{
+              padding: '12px',
+              background: '#2a2a3e',
+              border: '1px solid #4a5568',
+              marginBottom: '16px'
+            }}>
+              <h4 style={{ fontSize: '12px', marginBottom: '8px', color: '#f39c12' }}>
+                Viewport Scale
+              </h4>
+              <label style={{ display: 'block', fontSize: '11px', marginBottom: '8px' }}>
+                Current: {project.settings.scale}× ({displayWidth}×{displayHeight}px)
+              </label>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                {[1, 2, 3, 4].map(scale => (
+                  <button
+                    key={scale}
+                    onClick={() => setProject({
+                      ...project,
+                      settings: { ...project.settings, scale }
+                    })}
+                    style={{
+                      flex: 1,
+                      padding: '8px',
+                      background: project.settings.scale === scale ? '#27ae60' : '#1a1a2e',
+                      color: '#fff',
+                      border: '1px solid #4a5568',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      fontFamily: 'inherit'
+                    }}
+                  >
+                    {scale}×
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: '10px', color: '#888', marginTop: '8px' }}>
+                This affects both editor and exported HTML
+              </div>
+            </div>
+
+            {/* Font Settings */}
+            <div style={{
+              padding: '12px',
+              background: '#2a2a3e',
+              border: '1px solid #4a5568',
+              marginBottom: '16px'
+            }}>
+              <h4 style={{ fontSize: '12px', marginBottom: '8px', color: '#f39c12' }}>
+                Font Settings
+              </h4>
+              <label style={{ display: 'block', fontSize: '11px', marginBottom: '8px' }}>
+                Default: Dogica (pixel-perfect bitmap font)
+              </label>
+              
+              <label style={{
+                display: 'block',
+                padding: '8px',
+                background: '#27ae60',
+                color: '#fff',
+                textAlign: 'center',
+                cursor: 'pointer',
+                fontSize: '11px',
+                marginBottom: '8px',
+                fontFamily: 'inherit'
+              }}>
+                Upload Custom Font (.ttf, .otf)
+                <input
+                  type="file"
+                  accept=".ttf,.otf"
+                  onChange={uploadFont}
+                  style={{ display: 'none' }}
+                />
+              </label>
+
+              {project.settings.customFont && (
+                <div style={{
+                  padding: '8px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  fontSize: '10px',
+                  marginBottom: '8px'
+                }}>
+                  ✓ Custom font loaded
+                  <button
+                    onClick={() => setProject({
+                      ...project,
+                      settings: {
+                        ...project.settings,
+                        customFont: null,
+                        fontFamily: 'dogica, monospace'
+                      }
+                    })}
+                    style={{
+                      marginLeft: '8px',
+                      padding: '2px 6px',
+                      background: '#e74c3c',
+                      color: '#fff',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '9px',
+                      fontFamily: 'inherit'
+                    }}
+                  >
+                    Reset
+                  </button>
+                </div>
+              )}
+
+              <div style={{ fontSize: '10px', color: '#888', marginTop: '8px' }}>
+                Recommended: Pixel art fonts for best results
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Export Tab */}
         {activeTab === 'export' && (
           <div>
@@ -1128,6 +1313,7 @@ const VNEditor = () => {
                 <li>Export HTML for a standalone file</li>
                 <li>Export JSON to save/share projects</li>
                 <li>Import JSON to load saved projects</li>
+                <li>Settings (scale, font) are saved in export</li>
               </ul>
             </div>
           </div>
@@ -1195,8 +1381,8 @@ const VNEditor = () => {
             onClick={handleCanvasClick}
             style={{
               display: 'block',
-              width: '768px',
-              height: '576px',
+              width: `${displayWidth}px`,
+              height: `${displayHeight}px`,
               imageRendering: 'pixelated',
               cursor: isPlaying ? 'pointer' : 'default'
             }}
@@ -1210,6 +1396,8 @@ const VNEditor = () => {
           textAlign: 'center'
         }}>
           {isPlaying ? 'Click on preview to advance' : 'Press Play to test your visual novel'}
+          <br />
+          Scale: {project.settings.scale}× • Resolution: {displayWidth}×{displayHeight}
         </div>
       </div>
     </div>
