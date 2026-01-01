@@ -7,9 +7,11 @@ import {
   drawArrow, 
   drawSceneIndicator 
 } from './engine/renderEngine';
+
 import { exportRenderFunctions } from './engine/renderEngine';
 import ChoiceEditor from './components/ChoiceEditor';
 import FlagsManager from './components/FlagsManager';
+import { performGradientWipe, captureScene } from './engine/transitionEngine';
 
 // Visual Novel Editor - GBA/NDS Style
 // Resolution: 256x192 (NDS single screen)
@@ -51,6 +53,9 @@ const VNEditor = () => {
   const [currentDialogueIndex, setCurrentDialogueIndex] = useState(0);
   const [activeTab, setActiveTab] = useState('scenes');
   const [isPlaying, setIsPlaying] = useState(false);
+  const transitionImageRef = useRef(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionProgress, setTransitionProgress] = useState(0);
   
   const canvasRef = useRef(null);
   const fontFaceRef = useRef(null);
@@ -127,6 +132,29 @@ const VNEditor = () => {
       });
     }
   }, [project.settings.customFont]);
+
+  // Load default transition
+  useEffect(() => {
+    const transImg = new Image();
+    transImg.src = '/graphics/default_transition.png';
+    transImg.onload = () => {
+      transitionImageRef.current = transImg;
+    };
+    transImg.onerror = () => {
+      console.log('Default transition.png not found - transitions disabled');
+    };
+  }, []);
+
+  // Load custom transition if set
+  useEffect(() => {
+    if (project.settings.customTransition) {
+      const img = new Image();
+      img.src = project.settings.customTransition;
+      img.onload = () => {
+        transitionImageRef.current = img;
+      };
+    }
+  }, [project.settings.customTransition]);
 
 
   // Force render after font loads
@@ -325,14 +353,14 @@ const VNEditor = () => {
           
           // Jump to scene if enabled, otherwise advance dialogue
           if (choice.enableGoto !== false && choice.goto !== undefined) {
-            setCurrentSceneIndex(choice.goto);
+            changeSceneWithTransition(choice.goto);
             setCurrentDialogueIndex(0);
           } else {
             // Just advance to next dialogue
             if (currentDialogueIndex < scene.dialogues.length - 1) {
               setCurrentDialogueIndex(currentDialogueIndex + 1);
             } else if (currentSceneIndex < project.scenes.length - 1) {
-              setCurrentSceneIndex(currentSceneIndex + 1);
+              changeSceneWithTransition(currentSceneIndex + 1, 0);
               setCurrentDialogueIndex(0);
             }
           }
@@ -538,6 +566,9 @@ const VNEditor = () => {
     
     // Import render functions
     ${exportRenderFunctions()}
+
+    ${performGradientWipe.toString()}
+    ${captureScene.toString()}
     
     let currentScene = 0;
     let currentDialogue = 0;
@@ -547,6 +578,68 @@ const VNEditor = () => {
     
     const fontFamily = gameData.settings.customFont ? 'CustomFont, dogica, monospace' : 'dogica, monospace';
     
+    // Load transition image
+    const transitionImg = new Image();
+    if (gameData.settings.customTransition) {
+      transitionImg.src = gameData.settings.customTransition;
+    }
+    let isTransitioning = false;
+    
+    // Function to change scene with transition
+    function changeSceneWithTransition(newScene, newDialogue) {
+      if (!transitionImg.complete) {
+        currentScene = newScene;
+        currentDialogue = newDialogue;
+        render();
+        return;
+      }
+      
+      const oldScene = captureScene(canvas);
+      const newSceneCanvas = document.createElement('canvas');
+      newSceneCanvas.width = 256;
+      newSceneCanvas.height = 192;
+      const newCtx = newSceneCanvas.getContext('2d');
+      
+      // Render new scene
+      const scene = gameData.scenes[newScene];
+      if (scene.backgroundImage) {
+        const img = new Image();
+        img.src = scene.backgroundImage;
+        img.onload = () => {
+          newCtx.drawImage(img, 0, 0, 256, 192);
+          doTransition(oldScene, newSceneCanvas, newScene, newDialogue);
+        };
+      } else {
+        newCtx.fillStyle = scene.background;
+        newCtx.fillRect(0, 0, 256, 192);
+        doTransition(oldScene, newSceneCanvas, newScene, newDialogue);
+      }
+    }
+    
+    function doTransition(oldScene, newScene, newSceneIndex, newDialogue) {
+      isTransitioning = true;
+      const duration = gameData.settings.transitionDuration || 800;
+      const startTime = Date.now();
+      
+      function animate() {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        performGradientWipe(ctx, oldScene, newScene, transitionImg, progress, 256, 192);
+        
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          isTransitioning = false;
+          currentScene = newSceneIndex;
+          currentDialogue = newDialogue;
+          render();
+        }
+      }
+      
+      animate();
+    }
+
     // Load images
     const msgBoxImg = new Image();
     const nameBoxImg = new Image();
@@ -631,6 +724,9 @@ const VNEditor = () => {
     }
     
     canvas.addEventListener('click', (event) => {
+
+      if (isTransitioning) return; // Don't click during transition
+
       const scene = gameData.scenes[currentScene];
       const dialogue = scene.dialogues[currentDialogue];
       
@@ -672,14 +768,12 @@ const VNEditor = () => {
             
             // Jump or advance
             if (choice.enableGoto !== false && choice.goto !== undefined) {
-              currentScene = choice.goto;
-              currentDialogue = 0;
+              changeSceneWithTransition(choice.goto, 0);
             } else {
               if (currentDialogue < scene.dialogues.length - 1) {
                 currentDialogue++;
               } else if (currentScene < gameData.scenes.length - 1) {
-                currentScene++;
-                currentDialogue = 0;
+                changeSceneWithTransition(currentScene + 1, 0);
               }
             }
             
@@ -715,6 +809,75 @@ const VNEditor = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Function to change scene with transition
+  const changeSceneWithTransition = (newSceneIndex, newDialogueIndex = 0) => {
+    if (!transitionImageRef.current || !canvasRef.current) {
+      // No transition available, instant change
+      setCurrentSceneIndex(newSceneIndex);
+      setCurrentDialogueIndex(newDialogueIndex);
+      return;
+    }
+
+    // Capture current scene
+    const oldScene = captureScene(canvasRef.current);
+    
+    // Prepare new scene (render it off-screen)
+    const newSceneCanvas = document.createElement('canvas');
+    newSceneCanvas.width = project.resolution[0];
+    newSceneCanvas.height = project.resolution[1];
+    const newCtx = newSceneCanvas.getContext('2d', { alpha: false });
+    
+    // Render new scene to off-screen canvas
+    const scene = project.scenes[newSceneIndex];
+    if (scene.backgroundImage) {
+      const img = new Image();
+      img.src = scene.backgroundImage;
+      img.onload = () => {
+        newCtx.drawImage(img, 0, 0, project.resolution[0], project.resolution[1]);
+        startTransition(oldScene, newSceneCanvas, newSceneIndex, newDialogueIndex);
+      };
+    } else {
+      newCtx.fillStyle = scene.background;
+      newCtx.fillRect(0, 0, project.resolution[0], project.resolution[1]);
+      startTransition(oldScene, newSceneCanvas, newSceneIndex, newDialogueIndex);
+    }
+  };
+
+  const startTransition = (oldScene, newScene, newSceneIndex, newDialogueIndex) => {
+    setIsTransitioning(true);
+    const duration = project.settings.transitionDuration;
+    const startTime = Date.now();
+    
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      setTransitionProgress(progress);
+      
+      // Perform gradient wipe
+      const ctx = canvasRef.current.getContext('2d', { alpha: false });
+      performGradientWipe(
+        ctx,
+        oldScene,
+        newScene,
+        transitionImageRef.current,
+        progress,
+        project.resolution[0],
+        project.resolution[1]
+      );
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        setIsTransitioning(false);
+        setCurrentSceneIndex(newSceneIndex);
+        setCurrentDialogueIndex(newDialogueIndex);
+      }
+    };
+    
+    animate();
+  };
+
   // Export JSON
   const exportJSON = () => {
     const json = JSON.stringify(project, null, 2);
@@ -742,7 +905,9 @@ const VNEditor = () => {
             fontFamily: 'dogica, monospace',
             customFont: null,
             customMsgBox: null,
-            customNameBox: null
+            customNameBox: null,
+            customTransition: null,
+            transitionDuration: 800 // ms
           };
         }
         if (!imported.flags) {
@@ -1473,10 +1638,83 @@ const VNEditor = () => {
                 color: '#888'
               }}>
                 📝 NinePatch format: 16×16 PNG divided into 9 parts (corners + edges + center). 
-                Default graphics in /public/graphics/
               </div>
             </div>
+
+              {/* After UI Graphics section */}
+              <div style={{ marginTop: '24px' }}>
+                <h3 style={{ fontSize: '14px', color: '#f39c12', marginBottom: '12px' }}>
+                  Scene Transition
+                </h3>
+                
+                <div style={{
+                  padding: '12px',
+                  background: '#2a2a3e',
+                  border: '1px solid #4a5568'
+                }}>
+                  <label style={{
+                    display: 'block',
+                    padding: '8px',
+                    background: '#27ae60',
+                    color: '#fff',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    fontSize: '10px',
+                    marginBottom: '8px',
+                    fontFamily: 'inherit'
+                  }}>
+                    Upload Custom Transition (256×192)
+                    <input
+                      type="file"
+                      accept="image/png"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          setProject({
+                            ...project,
+                            settings: { ...project.settings, customTransition: ev.target.result }
+                          });
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                  
+                  {project.settings.customTransition && (
+                    <div style={{ fontSize: '10px', color: '#888', marginBottom: '8px' }}>
+                      ✓ Custom transition loaded
+                      <button
+                        onClick={() => setProject({
+                          ...project,
+                          settings: { ...project.settings, customTransition: null }
+                        })}
+                        style={{
+                          marginLeft: '8px',
+                          padding: '2px 6px',
+                          background: '#e74c3c',
+                          color: '#fff',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '9px',
+                          fontFamily: 'inherit'
+                        }}
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  )}
+                  
+                  <div style={{ fontSize: '10px', color: '#888', lineHeight: '1.4' }}>
+                    📝 Use grayscale gradient image (256×192 PNG). 
+                    White areas appear first, black areas last.
+                  </div>
+                </div>
+              </div>
           </div>
+
         )}
 
         {/* Settings Tab */}
