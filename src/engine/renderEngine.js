@@ -28,9 +28,14 @@ export const drawNinePatch = (ctx, image, x, y, width, height) => {
 export const drawChoices = (ctx, dialogue, boxX, boxY, boxWidth, y, lineHeight, fontFamily) => {
   if (!dialogue.choices || dialogue.choices.length === 0) return;
   
-  const choiceStartY = y + lineHeight + 4;
-  const choiceHeight = 14;
-  const choiceSpacing = 2;
+  const numChoices = dialogue.choices.length;
+  const maxChoiceHeight = 14;
+  const minChoiceHeight = 10;
+  
+  // Adatta altezza in base al numero di choices
+  const choiceHeight = numChoices > 3 ? minChoiceHeight : maxChoiceHeight;
+  const choiceSpacing = 1;
+  const choiceStartY = y + 4;
 
   dialogue.choices.forEach((choice, idx) => {
     const choiceY = choiceStartY + (idx * (choiceHeight + choiceSpacing));
@@ -43,9 +48,22 @@ export const drawChoices = (ctx, dialogue, boxX, boxY, boxWidth, y, lineHeight, 
     ctx.strokeRect(boxX + 8, choiceY, boxWidth - 16, choiceHeight);
     
     ctx.fillStyle = '#fff';
-    ctx.font = '8px ' + fontFamily;
-    ctx.fillText('▸ ' + choice.text, boxX + 12, choiceY + 9);
+    ctx.font = (choiceHeight < 12 ? '7px ' : '8px ') + fontFamily;
+    
+    // Tronca testo se troppo lungo
+    let choiceText = choice.text;
+    const maxWidth = boxWidth - 32;
+    let textWidth = ctx.measureText('▸ ' + choiceText).width;
+    while (textWidth > maxWidth && choiceText.length > 3) {
+      choiceText = choiceText.slice(0, -1);
+      textWidth = ctx.measureText('▸ ' + choiceText + '...').width;
+    }
+    if (choiceText !== choice.text) choiceText += '...';
+    
+    ctx.fillText('▸ ' + choiceText, boxX + 12, choiceY + (choiceHeight / 2) + 3);
   });
+  
+  return choiceStartY + (numChoices * (choiceHeight + choiceSpacing)); // Return bottom position
 };
 
 export const drawDialogueText = (ctx, text, boxX, boxY, boxWidth, fontFamily) => {

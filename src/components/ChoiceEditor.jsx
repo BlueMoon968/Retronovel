@@ -1,6 +1,6 @@
 import React from 'react';
 
-const ChoiceEditor = ({ dialogue, sceneIndex, dialogueIndex, updateDialogue, totalScenes }) => {
+const ChoiceEditor = ({ dialogue, sceneIndex, dialogueIndex, updateDialogue, totalScenes, flags }) => {
   const choices = dialogue.choices || [];
 
   const addChoice = () => {
@@ -113,8 +113,45 @@ const ChoiceEditor = ({ dialogue, sceneIndex, dialogueIndex, updateDialogue, tot
               }}
             />
           </div>
+
+        <div style={{ marginTop: '4px' }}>
+                <label style={{ fontSize: '9px', color: '#888', display: 'block', marginBottom: '2px' }}>
+                  Set flag (optional):
+                </label>
+                <select
+                  value={choice.setFlag || ''}
+                  onChange={(e) => updateChoice(idx, 'setFlag', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '2px 4px',
+                    background: '#16213e',
+                    border: '1px solid #4a5568',
+                    color: '#fff',
+                    fontSize: '10px',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  {flags.map(flag => (
+                    <option key={flag.id} value={flag.name}>{flag.name}</option>
+                  ))}
+                  <option value="">None</option>
+                  {/* */}
+                </select>
+                {choice.setFlag && (
+                  <label style={{ fontSize: '9px', color: '#888', display: 'flex', alignItems: 'center', marginTop: '2px' }}>
+                    <input
+                      type="checkbox"
+                      checked={choice.setFlagValue !== false}
+                      onChange={(e) => updateChoice(idx, 'setFlagValue', e.target.checked)}
+                      style={{ marginRight: '4px' }}
+                    />
+                    Set to {choice.setFlagValue !== false ? 'TRUE' : 'FALSE'}
+                  </label>
+                )}
+              </div>
         </div>
       ))}
+
 
       {choices.length === 0 && (
         <div style={{

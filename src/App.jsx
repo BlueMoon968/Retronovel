@@ -9,6 +9,7 @@ import {
 } from './engine/renderEngine';
 import { exportRenderFunctions } from './engine/renderEngine';
 import ChoiceEditor from './components/ChoiceEditor';
+import FlagsManager from './components/FlagsManager';
 
 // Visual Novel Editor - GBA/NDS Style
 // Resolution: 256x192 (NDS single screen)
@@ -17,6 +18,7 @@ const VNEditor = () => {
   const [project, setProject] = useState({
     title: "My Visual Novel",
     resolution: [256, 192],
+    flags: [],
     settings: {
       scale: 2,
       fontFamily: 'dogica, monospace',
@@ -659,6 +661,9 @@ const VNEditor = () => {
             customNameBox: null
           };
         }
+        if (!imported.flags) {
+          imported.flags = [];
+        }
         setProject(imported);
         setCurrentSceneIndex(0);
         setCurrentDialogueIndex(0);
@@ -1083,6 +1088,7 @@ const VNEditor = () => {
                       dialogueIndex={dIdx}
                       updateDialogue={updateDialogue}
                       totalScenes={project.scenes.length}
+                      flags={project.flags}
                     />
                   </div>
                 ))}
@@ -1511,6 +1517,12 @@ const VNEditor = () => {
             </div>
           </div>
         )}
+    
+        {/* Flags Manager */}
+        <FlagsManager
+          flags={project.flags}
+          setFlags={(newFlags) => setProject({ ...project, flags: newFlags })}
+        />
 
         {/* Export Tab */}
         {activeTab === 'export' && (
