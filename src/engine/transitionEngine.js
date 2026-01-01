@@ -1,6 +1,6 @@
 /**
- * Gradient Wipe Transition Engine
- * Uses a gradient image to create smooth scene transitions
+ * Transition Engine - Scene transition effects
+ * Gradient Wipe implementation
  */
 
 export const performGradientWipe = (
@@ -13,7 +13,6 @@ export const performGradientWipe = (
   height
 ) => {
   if (!gradientImage || !gradientImage.complete) {
-    // Fallback: draw new scene directly
     ctx.drawImage(newCanvas, 0, 0);
     return;
   }
@@ -44,19 +43,16 @@ export const performGradientWipe = (
   
   // Apply gradient wipe pixel by pixel
   for (let i = 0; i < gradientData.data.length; i += 4) {
-    // Use grayscale value (all channels should be same in gradient)
     const gradValue = gradientData.data[i];
     
-    // If gradient value is less than threshold, show new scene
     if (gradValue < threshold) {
-      currentImageData.data[i] = newImageData.data[i];         // R
-      currentImageData.data[i + 1] = newImageData.data[i + 1]; // G
-      currentImageData.data[i + 2] = newImageData.data[i + 2]; // B
-      currentImageData.data[i + 3] = newImageData.data[i + 3]; // A
+      currentImageData.data[i] = newImageData.data[i];
+      currentImageData.data[i + 1] = newImageData.data[i + 1];
+      currentImageData.data[i + 2] = newImageData.data[i + 2];
+      currentImageData.data[i + 3] = newImageData.data[i + 3];
     }
   }
   
-  // Put modified image back
   ctx.putImageData(currentImageData, 0, 0);
 };
 
@@ -67,4 +63,12 @@ export const captureScene = (canvas) => {
   const ctx = snapshot.getContext('2d', { alpha: false });
   ctx.drawImage(canvas, 0, 0);
   return snapshot;
+};
+
+// Export as string for HTML
+export const exportTransitionFunctions = () => {
+  return `
+    ${performGradientWipe.toString()}
+    ${captureScene.toString()}
+  `;
 };

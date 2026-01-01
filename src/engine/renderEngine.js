@@ -1,4 +1,7 @@
-// Funzioni di rendering pure - usate sia in editor che in export
+/**
+ * Render Engine - Core rendering functions
+ * Single source of truth for all visual novel rendering
+ */
 
 export const drawNinePatch = (ctx, image, x, y, width, height) => {
   if (!image || !image.complete) return false;
@@ -25,45 +28,27 @@ export const drawNinePatch = (ctx, image, x, y, width, height) => {
   return true;
 };
 
-export const drawChoices = (ctx, dialogue, boxX, boxY, boxWidth, y, lineHeight, fontFamily) => {
-  if (!dialogue.choices || dialogue.choices.length === 0) return;
+export const drawNameBox = (ctx, nameBoxImage, speaker, boxX, boxY, fontFamily) => {
+  ctx.font = 'bold 8px ' + fontFamily;
+  const nameWidth = ctx.measureText(speaker).width;
+  const nameBoxWidth = nameWidth + 16;
+  const nameBoxHeight = 16;
+  const nameBoxX = boxX + 4;
+  const nameBoxY = boxY - nameBoxHeight + 4;
   
-  const numChoices = dialogue.choices.length;
-  const maxChoiceHeight = 14;
-  const minChoiceHeight = 10;
-  
-  // Adatta altezza in base al numero di choices
-  const choiceHeight = numChoices > 3 ? minChoiceHeight : maxChoiceHeight;
-  const choiceSpacing = 1;
-  const choiceStartY = y + 4;
-
-  dialogue.choices.forEach((choice, idx) => {
-    const choiceY = choiceStartY + (idx * (choiceHeight + choiceSpacing));
-    
-    ctx.fillStyle = 'rgba(41, 128, 185, 0.3)';
-    ctx.fillRect(boxX + 8, choiceY, boxWidth - 16, choiceHeight);
-    
-    ctx.strokeStyle = '#3498db';
+  const nameBoxDrawn = drawNinePatch(ctx, nameBoxImage, nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
+  if (!nameBoxDrawn) {
+    ctx.fillStyle = 'rgba(30, 30, 50, 0.9)';
+    ctx.fillRect(nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
+    ctx.strokeStyle = '#ffd700';
     ctx.lineWidth = 1;
-    ctx.strokeRect(boxX + 8, choiceY, boxWidth - 16, choiceHeight);
-    
-    ctx.fillStyle = '#fff';
-    ctx.font = (choiceHeight < 12 ? '7px ' : '8px ') + fontFamily;
-    
-    // Tronca testo se troppo lungo
-    let choiceText = choice.text;
-    const maxWidth = boxWidth - 32;
-    let textWidth = ctx.measureText('▸ ' + choiceText).width;
-    while (textWidth > maxWidth && choiceText.length > 3) {
-      choiceText = choiceText.slice(0, -1);
-      textWidth = ctx.measureText('▸ ' + choiceText + '...').width;
-    }
-    if (choiceText !== choice.text) choiceText += '...';
-    
-    ctx.fillText('▸ ' + choiceText, boxX + 12, choiceY + (choiceHeight / 2) + 3);
-  });
+    ctx.strokeRect(nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
+  }
   
-  return choiceStartY + (numChoices * (choiceHeight + choiceSpacing)); // Return bottom position
+  // Speaker name
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 8px ' + fontFamily;
+  ctx.fillText(speaker, nameBoxX + 8, nameBoxY + 11);
 };
 
 export const drawDialogueText = (ctx, text, boxX, boxY, boxWidth, fontFamily) => {
@@ -90,7 +75,63 @@ export const drawDialogueText = (ctx, text, boxX, boxY, boxWidth, fontFamily) =>
   }
   ctx.fillText(line, boxX + 8, y);
   
-  return y; // Return last Y position for choices
+  return y;
+};
+
+export const drawChoices = (ctx, dialogue, canvasWidth, canvasHeight, fontFamily) => {
+  if (!dialogue.choices || dialogue.choices.length === 0) return null;
+  
+  const numChoices = dialogue.choices.length;
+  const choiceHeight = 16;
+  const choiceSpacing = 4;
+  const choiceWidth = 200;
+  
+  // Center choices on screen
+  const totalHeight = (numChoices * choiceHeight) + ((numChoices - 1) * choiceSpacing);
+  const startY = (canvasHeight - totalHeight) / 2;
+  const startX = (canvasWidth - choiceWidth) / 2;
+  
+  const choicePositions = [];
+
+  dialogue.choices.forEach((choice, idx) => {
+    const choiceY = startY + (idx * (choiceHeight + choiceSpacing));
+    
+    // Background
+    ctx.fillStyle = 'rgba(30, 30, 50, 0.95)';
+    ctx.fillRect(startX, choiceY, choiceWidth, choiceHeight);
+    
+    // Border
+    ctx.strokeStyle = '#3498db';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(startX, choiceY, choiceWidth, choiceHeight);
+    
+    // Choice text
+    ctx.fillStyle = '#fff';
+    ctx.font = '8px ' + fontFamily;
+    
+    // Truncate text if too long
+    let choiceText = choice.text;
+    const maxWidth = choiceWidth - 20;
+    let textWidth = ctx.measureText('▸ ' + choiceText).width;
+    while (textWidth > maxWidth && choiceText.length > 3) {
+      choiceText = choiceText.slice(0, -1);
+      textWidth = ctx.measureText('▸ ' + choiceText + '...').width;
+    }
+    if (choiceText !== choice.text) choiceText += '...';
+    
+    ctx.fillText('▸ ' + choiceText, startX + 8, choiceY + 11);
+    
+    // Store position for click detection
+    choicePositions.push({
+      x: startX,
+      y: choiceY,
+      width: choiceWidth,
+      height: choiceHeight,
+      choice: choice
+    });
+  });
+  
+  return choicePositions;
 };
 
 export const drawArrow = (ctx, boxX, boxY, boxWidth, boxHeight, hasMore) => {
@@ -104,29 +145,6 @@ export const drawArrow = (ctx, boxX, boxY, boxWidth, boxHeight, hasMore) => {
   ctx.fill();
 };
 
-export const drawNameBox = (ctx, nameBoxImage, speaker, boxX, boxY, fontFamily) => {
-  ctx.font = 'bold 8px ' + fontFamily;
-  const nameWidth = ctx.measureText(speaker).width;
-  const nameBoxWidth = nameWidth + 16;
-  const nameBoxHeight = 16;
-  const nameBoxX = boxX + 4;
-  const nameBoxY = boxY - nameBoxHeight + 4;
-  
-  const nameBoxDrawn = drawNinePatch(ctx, nameBoxImage, nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
-  if (!nameBoxDrawn) {
-    ctx.fillStyle = 'rgba(30, 30, 50, 0.9)';
-    ctx.fillRect(nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
-    ctx.strokeStyle = '#ffd700';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
-  }
-  
-  // Speaker name
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 8px ' + fontFamily;
-  ctx.fillText(speaker, nameBoxX + 8, nameBoxY + 11);
-};
-
 export const drawSceneIndicator = (ctx, currentScene, totalScenes, fontFamily) => {
   ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
   ctx.fillRect(0, 0, 80, 16);
@@ -135,6 +153,7 @@ export const drawSceneIndicator = (ctx, currentScene, totalScenes, fontFamily) =
   ctx.fillText('Scene ' + (currentScene + 1) + '/' + totalScenes, 4, 10);
 };
 
+// Export functions as string for HTML export
 export const exportRenderFunctions = () => {
   return `
     ${drawNinePatch.toString()}
