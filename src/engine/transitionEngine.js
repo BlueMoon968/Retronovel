@@ -13,52 +13,58 @@ export const performGradientWipe = (
   height
 ) => {
   if (!gradientImage || !gradientImage.complete) {
-    // Fallback: instant transition
+    // Fallback: draw new scene directly
     ctx.drawImage(newCanvas, 0, 0);
     return;
   }
 
-  // Create temporary canvas for gradient
-  const gradientCanvas = document.createElement('canvas');
-  gradientCanvas.width = width;
-  gradientCanvas.height = height;
-  const gradCtx = gradientCanvas.getContext('2d');
-  
-  // Draw and analyze gradient
-  gradCtx.drawImage(gradientImage, 0, 0, width, height);
-  const gradientData = gradCtx.getImageData(0, 0, width, height);
-  
-  // Draw old scene
+  // Clear and draw old scene
+  ctx.clearRect(0, 0, width, height);
   ctx.drawImage(oldCanvas, 0, 0);
   
-  // Get pixel data from new scene
-  const newCtx = newCanvas.getContext('2d');
-  const newData = newCtx.getImageData(0, 0, width, height);
-  const currentData = ctx.getImageData(0, 0, width, height);
+  // Create gradient mask
+  const maskCanvas = document.createElement('canvas');
+  maskCanvas.width = width;
+  maskCanvas.height = height;
+  const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
   
-  // Apply gradient wipe
-  const threshold = progress * 255; // 0-255 based on progress
+  // Draw gradient at full size
+  maskCtx.drawImage(gradientImage, 0, 0, width, height);
+  const gradientData = maskCtx.getImageData(0, 0, width, height);
   
+  // Get new scene data
+  const newCtx = newCanvas.getContext('2d', { willReadFrequently: true });
+  const newImageData = newCtx.getImageData(0, 0, width, height);
+  
+  // Get current display data
+  const currentImageData = ctx.getImageData(0, 0, width, height);
+  
+  // Calculate threshold (0-255)
+  const threshold = Math.floor(progress * 255);
+  
+  // Apply gradient wipe pixel by pixel
   for (let i = 0; i < gradientData.data.length; i += 4) {
-    const gradientValue = gradientData.data[i]; // Use red channel
+    // Use grayscale value (all channels should be same in gradient)
+    const gradValue = gradientData.data[i];
     
-    if (gradientValue <= threshold) {
-      // Show new scene pixel
-      currentData.data[i] = newData.data[i];
-      currentData.data[i + 1] = newData.data[i + 1];
-      currentData.data[i + 2] = newData.data[i + 2];
-      currentData.data[i + 3] = newData.data[i + 3];
+    // If gradient value is less than threshold, show new scene
+    if (gradValue < threshold) {
+      currentImageData.data[i] = newImageData.data[i];         // R
+      currentImageData.data[i + 1] = newImageData.data[i + 1]; // G
+      currentImageData.data[i + 2] = newImageData.data[i + 2]; // B
+      currentImageData.data[i + 3] = newImageData.data[i + 3]; // A
     }
   }
   
-  ctx.putImageData(currentData, 0, 0);
+  // Put modified image back
+  ctx.putImageData(currentImageData, 0, 0);
 };
 
 export const captureScene = (canvas) => {
   const snapshot = document.createElement('canvas');
   snapshot.width = canvas.width;
   snapshot.height = canvas.height;
-  const ctx = snapshot.getContext('2d');
+  const ctx = snapshot.getContext('2d', { alpha: false });
   ctx.drawImage(canvas, 0, 0);
   return snapshot;
 };

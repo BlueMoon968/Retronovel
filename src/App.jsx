@@ -136,25 +136,32 @@ const VNEditor = () => {
 
   // Load default transition
   useEffect(() => {
-    const transImg = new Image();
-    transImg.src = '/graphics/default_transition.png';
-    transImg.onload = () => {
-      transitionImageRef.current = transImg;
+    const loadTransition = async () => {
+      const transImg = new Image();
+      transImg.crossOrigin = "anonymous";
+      
+      // Try custom first, then default
+      if (project.settings.customTransition) {
+        transImg.src = project.settings.customTransition;
+      } else {
+        transImg.src = '/graphics/default_transition.png';
+      }
+      
+      await new Promise((resolve) => {
+        transImg.onload = () => {
+          transitionImageRef.current = transImg;
+          console.log('Transition image loaded:', transImg.width, 'x', transImg.height);
+          resolve();
+        };
+        transImg.onerror = () => {
+          console.error('Failed to load transition image');
+          transitionImageRef.current = null;
+          resolve();
+        };
+      });
     };
-    transImg.onerror = () => {
-      console.log('Default transition.png not found - transitions disabled');
-    };
-  }, []);
-
-  // Load custom transition if set
-  useEffect(() => {
-    if (project.settings.customTransition) {
-      const img = new Image();
-      img.src = project.settings.customTransition;
-      img.onload = () => {
-        transitionImageRef.current = img;
-      };
-    }
+    
+    loadTransition();
   }, [project.settings.customTransition]);
 
 
@@ -813,17 +820,15 @@ const VNEditor = () => {
 
   const changeSceneWithTransition = (newSceneIndex, newDialogueIndex = 0) => {
     if (!transitionImageRef.current || !canvasRef.current) {
+      console.log('No transition image, instant change');
       setCurrentSceneIndex(newSceneIndex);
       setCurrentDialogueIndex(newDialogueIndex);
       return;
     }
 
     setIsTransitioning(true);
-    
-    // Capture current scene
     const oldScene = captureScene(canvasRef.current);
     
-    // Create new scene canvas
     const newSceneCanvas = document.createElement('canvas');
     newSceneCanvas.width = project.resolution[0];
     newSceneCanvas.height = project.resolution[1];
@@ -831,56 +836,68 @@ const VNEditor = () => {
     newCtx.imageSmoothingEnabled = false;
     
     const scene = project.scenes[newSceneIndex];
-    const dialogue = scene.dialogues[newDialogueIndex];
     
-    // Render complete new scene (background only, no UI during transition)
-    const renderNewScene = () => {
-      // Background
-      if (scene.backgroundImage) {
-        const bgImg = new Image();
-        bgImg.src = scene.backgroundImage;
-        bgImg.onload = () => {
-          newCtx.drawImage(bgImg, 0, 0, project.resolution[0], project.resolution[1]);
-          renderCharacter();
-        };
-      } else {
-        newCtx.fillStyle = scene.background;
-        newCtx.fillRect(0, 0, project.resolution[0], project.resolution[1]);
-        renderCharacter();
+    // Track loaded assets
+    let assetsToLoad = 0;
+    let assetsLoaded = 0;
+    
+    const checkComplete = () => {
+      assetsLoaded++;
+      if (assetsLoaded === assetsToLoad) {
+        startTransition(oldScene, newSceneCanvas, newSceneIndex, newDialogueIndex);
       }
     };
     
-    const renderCharacter = () => {
-      if (scene.characterImage) {
-        const charImg = new Image();
-        charImg.src = scene.characterImage;
-        charImg.onload = () => {
-          const charWidth = 80;
-          const charHeight = 120;
-          let charX = (project.resolution[0] - charWidth) / 2;
-          if (scene.characterPosition === 'left') charX = 20;
-          if (scene.characterPosition === 'right') charX = project.resolution[0] - charWidth - 20;
-          newCtx.drawImage(charImg, charX, project.resolution[1] - charHeight - 10, charWidth, charHeight);
-          startTransition(oldScene, newSceneCanvas, newSceneIndex, newDialogueIndex);
-        };
-      } else if (scene.character) {
-        newCtx.fillStyle = '#4a4a4a';
-        const charWidth = 64;
-        const charHeight = 96;
+    // Draw background
+    if (scene.backgroundImage) {
+      assetsToLoad++;
+      const bgImg = new Image();
+      bgImg.onload = () => {
+        newCtx.drawImage(bgImg, 0, 0, project.resolution[0], project.resolution[1]);
+        checkComplete();
+      };
+      bgImg.onerror = () => checkComplete();
+      bgImg.src = scene.backgroundImage;
+    } else {
+      newCtx.fillStyle = scene.background;
+      newCtx.fillRect(0, 0, project.resolution[0], project.resolution[1]);
+    }
+    
+    // Draw character
+    if (scene.characterImage) {
+      assetsToLoad++;
+      const charImg = new Image();
+      charImg.onload = () => {
+        const charWidth = 80;
+        const charHeight = 120;
         let charX = (project.resolution[0] - charWidth) / 2;
         if (scene.characterPosition === 'left') charX = 20;
         if (scene.characterPosition === 'right') charX = project.resolution[0] - charWidth - 20;
-        newCtx.fillRect(charX, project.resolution[1] - charHeight - 50, charWidth, charHeight);
-        startTransition(oldScene, newSceneCanvas, newSceneIndex, newDialogueIndex);
-      } else {
-        startTransition(oldScene, newSceneCanvas, newSceneIndex, newDialogueIndex);
-      }
-    };
+        newCtx.drawImage(charImg, charX, project.resolution[1] - charHeight - 10, charWidth, charHeight);
+        checkComplete();
+      };
+      charImg.onerror = () => checkComplete();
+      charImg.src = scene.characterImage;
+    } else if (scene.character) {
+      newCtx.fillStyle = '#4a4a4a';
+      const charWidth = 64;
+      const charHeight = 96;
+      let charX = (project.resolution[0] - charWidth) / 2;
+      if (scene.characterPosition === 'left') charX = 20;
+      if (scene.characterPosition === 'right') charX = project.resolution[0] - charWidth - 20;
+      newCtx.fillRect(charX, project.resolution[1] - charHeight - 50, charWidth, charHeight);
+    }
     
-    renderNewScene();
+    // If no assets to load, start immediately
+    if (assetsToLoad === 0) {
+      startTransition(oldScene, newSceneCanvas, newSceneIndex, newDialogueIndex);
+    }
   };
 
   const startTransition = (oldScene, newScene, newSceneIndex, newDialogueIndex) => {
+    console.log('Starting transition to scene', newSceneIndex);
+    console.log('Transition image:', transitionImageRef.current);
+    
     const duration = project.settings.transitionDuration || 800;
     const startTime = Date.now();
     const ctx = canvasRef.current.getContext('2d', { alpha: false });
@@ -902,6 +919,7 @@ const VNEditor = () => {
       if (progress < 1) {
         requestAnimationFrame(animate);
       } else {
+        console.log('Transition complete');
         setIsTransitioning(false);
         setCurrentSceneIndex(newSceneIndex);
         setCurrentDialogueIndex(newDialogueIndex);
