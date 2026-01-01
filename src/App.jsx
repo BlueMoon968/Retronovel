@@ -31,6 +31,7 @@ const VNEditor = () => {
     scenes: [
       {
         id: 1,
+        name: "Scene 1",
         background: "#2d5a3d",
         character: null,
         characterImage: null,
@@ -307,7 +308,7 @@ const VNEditor = () => {
   }, [project, currentSceneIndex, currentDialogueIndex]);
 
   const handleCanvasClick = (event) => {
-    if (!isPlaying) return;
+    if (!isPlaying || isTransitioning) return;
     
     const scene = project.scenes[currentSceneIndex];
     const dialogue = scene.dialogues[currentDialogueIndex];
@@ -387,6 +388,7 @@ const VNEditor = () => {
       ...project,
       scenes: [...project.scenes, {
         id: project.scenes.length + 1,
+        name: `Scene ${project.scenes.length + 1}`,
         background: "#2d5a3d",
         character: null,
         characterPosition: "center",
@@ -809,53 +811,84 @@ const VNEditor = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Function to change scene with transition
   const changeSceneWithTransition = (newSceneIndex, newDialogueIndex = 0) => {
     if (!transitionImageRef.current || !canvasRef.current) {
-      // No transition available, instant change
       setCurrentSceneIndex(newSceneIndex);
       setCurrentDialogueIndex(newDialogueIndex);
       return;
     }
 
+    setIsTransitioning(true);
+    
     // Capture current scene
     const oldScene = captureScene(canvasRef.current);
     
-    // Prepare new scene (render it off-screen)
+    // Create new scene canvas
     const newSceneCanvas = document.createElement('canvas');
     newSceneCanvas.width = project.resolution[0];
     newSceneCanvas.height = project.resolution[1];
     const newCtx = newSceneCanvas.getContext('2d', { alpha: false });
+    newCtx.imageSmoothingEnabled = false;
     
-    // Render new scene to off-screen canvas
     const scene = project.scenes[newSceneIndex];
-    if (scene.backgroundImage) {
-      const img = new Image();
-      img.src = scene.backgroundImage;
-      img.onload = () => {
-        newCtx.drawImage(img, 0, 0, project.resolution[0], project.resolution[1]);
+    const dialogue = scene.dialogues[newDialogueIndex];
+    
+    // Render complete new scene (background only, no UI during transition)
+    const renderNewScene = () => {
+      // Background
+      if (scene.backgroundImage) {
+        const bgImg = new Image();
+        bgImg.src = scene.backgroundImage;
+        bgImg.onload = () => {
+          newCtx.drawImage(bgImg, 0, 0, project.resolution[0], project.resolution[1]);
+          renderCharacter();
+        };
+      } else {
+        newCtx.fillStyle = scene.background;
+        newCtx.fillRect(0, 0, project.resolution[0], project.resolution[1]);
+        renderCharacter();
+      }
+    };
+    
+    const renderCharacter = () => {
+      if (scene.characterImage) {
+        const charImg = new Image();
+        charImg.src = scene.characterImage;
+        charImg.onload = () => {
+          const charWidth = 80;
+          const charHeight = 120;
+          let charX = (project.resolution[0] - charWidth) / 2;
+          if (scene.characterPosition === 'left') charX = 20;
+          if (scene.characterPosition === 'right') charX = project.resolution[0] - charWidth - 20;
+          newCtx.drawImage(charImg, charX, project.resolution[1] - charHeight - 10, charWidth, charHeight);
+          startTransition(oldScene, newSceneCanvas, newSceneIndex, newDialogueIndex);
+        };
+      } else if (scene.character) {
+        newCtx.fillStyle = '#4a4a4a';
+        const charWidth = 64;
+        const charHeight = 96;
+        let charX = (project.resolution[0] - charWidth) / 2;
+        if (scene.characterPosition === 'left') charX = 20;
+        if (scene.characterPosition === 'right') charX = project.resolution[0] - charWidth - 20;
+        newCtx.fillRect(charX, project.resolution[1] - charHeight - 50, charWidth, charHeight);
         startTransition(oldScene, newSceneCanvas, newSceneIndex, newDialogueIndex);
-      };
-    } else {
-      newCtx.fillStyle = scene.background;
-      newCtx.fillRect(0, 0, project.resolution[0], project.resolution[1]);
-      startTransition(oldScene, newSceneCanvas, newSceneIndex, newDialogueIndex);
-    }
+      } else {
+        startTransition(oldScene, newSceneCanvas, newSceneIndex, newDialogueIndex);
+      }
+    };
+    
+    renderNewScene();
   };
 
   const startTransition = (oldScene, newScene, newSceneIndex, newDialogueIndex) => {
-    setIsTransitioning(true);
-    const duration = project.settings.transitionDuration;
+    const duration = project.settings.transitionDuration || 800;
     const startTime = Date.now();
+    const ctx = canvasRef.current.getContext('2d', { alpha: false });
     
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
       
-      setTransitionProgress(progress);
-      
-      // Perform gradient wipe
-      const ctx = canvasRef.current.getContext('2d', { alpha: false });
       performGradientWipe(
         ctx,
         oldScene,
@@ -875,7 +908,7 @@ const VNEditor = () => {
       }
     };
     
-    animate();
+    requestAnimationFrame(animate);
   };
 
   // Export JSON
@@ -899,6 +932,10 @@ const VNEditor = () => {
     reader.onload = (e) => {
       try {
         const imported = JSON.parse(e.target.result);
+        imported.scenes = imported.scenes.map((scene, idx) => ({
+          ...scene,
+          name: scene.name || `Scene ${idx + 1}`
+        }));
         if (!imported.settings) {
           imported.settings = {
             scale: 2,
@@ -1080,41 +1117,68 @@ const VNEditor = () => {
               {project.scenes.map((s, idx) => (
                 <div
                   key={s.id}
-                  onClick={() => {
-                    setCurrentSceneIndex(idx);
-                    setCurrentDialogueIndex(0);
-                  }}
                   style={{
                     padding: '8px',
                     background: currentSceneIndex === idx ? '#4a5568' : '#2a2a3e',
                     marginBottom: '4px',
-                    cursor: 'pointer',
-                    border: '1px solid #4a5568',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
+                    border: '1px solid #4a5568'
                   }}
                 >
-                  <span style={{ fontSize: '12px' }}>Scene {idx + 1}</span>
-                  {project.scenes.length > 1 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteScene(idx);
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="text"
+                      value={s.name || `Scene ${idx + 1}`}
+                      onChange={(e) => {
+                        const newScenes = [...project.scenes];
+                        newScenes[idx] = { ...newScenes[idx], name: e.target.value };
+                        setProject({ ...project, scenes: newScenes });
                       }}
+                      onClick={(e) => e.stopPropagation()}
                       style={{
-                        padding: '2px 6px',
-                        background: '#e74c3c',
+                        flex: 1,
+                        padding: '4px',
+                        background: '#1a1a2e',
+                        border: '1px solid #4a5568',
                         color: '#fff',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: '10px',
+                        fontSize: '11px',
                         fontFamily: 'inherit'
                       }}
-                    >
-                      ×
-                    </button>
-                  )}
+                    />
+                    <span style={{ fontSize: '10px', color: '#888' }}>#{s.id}</span>
+                    {project.scenes.length > 1 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteScene(idx);
+                        }}
+                        style={{
+                          padding: '2px 6px',
+                          background: '#e74c3c',
+                          color: '#fff',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '10px',
+                          fontFamily: 'inherit'
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  <div
+                    onClick={() => {
+                      setCurrentSceneIndex(idx);
+                      setCurrentDialogueIndex(0);
+                    }}
+                    style={{
+                      padding: '4px 0',
+                      cursor: 'pointer',
+                      fontSize: '10px',
+                      color: '#888'
+                    }}
+                  >
+                    Click to edit
+                  </div>
                 </div>
               ))}
             </div>
@@ -1762,6 +1826,38 @@ const VNEditor = () => {
               </div>
               <div style={{ fontSize: '10px', color: '#888', marginTop: '8px' }}>
                 This affects both editor and exported HTML
+              </div>
+            </div>
+
+            {/* Transition slider */}
+            <div style={{
+              padding: '12px',
+              background: '#2a2a3e',
+              border: '1px solid #4a5568',
+              marginBottom: '16px'
+            }}>
+              <h4 style={{ fontSize: '12px', marginBottom: '8px', color: '#f39c12' }}>
+                Transition Duration
+              </h4>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <input
+                  type="range"
+                  min="200"
+                  max="2000"
+                  step="100"
+                  value={project.settings.transitionDuration || 800}
+                  onChange={(e) => setProject({
+                    ...project,
+                    settings: { ...project.settings, transitionDuration: parseInt(e.target.value) }
+                  })}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: '11px', minWidth: '60px' }}>
+                  {project.settings.transitionDuration || 800}ms
+                </span>
+              </div>
+              <div style={{ fontSize: '10px', color: '#888' }}>
+                Duration of scene transitions (200-2000ms)
               </div>
             </div>
 
