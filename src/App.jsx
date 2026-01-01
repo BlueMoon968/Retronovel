@@ -299,26 +299,52 @@ const VNEditor = () => {
       const boxWidth = width - 16;
       
       // Calculate choice positions (must match rendering logic)
+      const numChoices = dialogue.choices.length;
+      const maxChoiceHeight = 14;
+      const minChoiceHeight = 10;
+      const choiceHeight = numChoices > 3 ? minChoiceHeight : maxChoiceHeight;
+      const choiceSpacing = 1;
       const choiceStartY = boxY + 40; // Adjust based on text height
-      const choiceHeight = 14;
-      const choiceSpacing = 2;
       
-      dialogue.choices.forEach((choice, idx) => {
+      for (let idx = 0; idx < dialogue.choices.length; idx++) {
+        const choice = dialogue.choices[idx];
         const choiceY = choiceStartY + (idx * (choiceHeight + choiceSpacing));
         
         if (x >= boxX + 8 && x <= boxX + boxWidth - 8 &&
             y >= choiceY && y <= choiceY + choiceHeight) {
-          // Choice clicked!
-          setCurrentSceneIndex(choice.goto);
-          setCurrentDialogueIndex(0);
+          
+          // Apply flag change if set
+          if (choice.setFlag) {
+            const newFlags = project.flags.map(f => 
+              f.name === choice.setFlag 
+                ? { ...f, value: choice.setFlagValue !== false }
+                : f
+            );
+            setProject({ ...project, flags: newFlags });
+          }
+          
+          // Jump to scene if enabled, otherwise advance dialogue
+          if (choice.enableGoto !== false && choice.goto !== undefined) {
+            setCurrentSceneIndex(choice.goto);
+            setCurrentDialogueIndex(0);
+          } else {
+            // Just advance to next dialogue
+            if (currentDialogueIndex < scene.dialogues.length - 1) {
+              setCurrentDialogueIndex(currentDialogueIndex + 1);
+            } else if (currentSceneIndex < project.scenes.length - 1) {
+              setCurrentSceneIndex(currentSceneIndex + 1);
+              setCurrentDialogueIndex(0);
+            }
+          }
+          
           return;
         }
-      });
+      }
       
-      return; // Don't advance if choices are present
+      return; // Don't advance if choices are present but not clicked
     }
     
-    // Normal dialogue advancement
+    // Normal dialogue advancement (no choices)
     if (currentDialogueIndex < scene.dialogues.length - 1) {
       setCurrentDialogueIndex(currentDialogueIndex + 1);
     } else if (currentSceneIndex < project.scenes.length - 1) {
@@ -604,9 +630,67 @@ const VNEditor = () => {
       }
     }
     
-    canvas.addEventListener('click', () => {
+    canvas.addEventListener('click', (event) => {
       const scene = gameData.scenes[currentScene];
+      const dialogue = scene.dialogues[currentDialogue];
       
+      // Check for choices
+      if (dialogue.choices && dialogue.choices.length > 0) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = (event.clientX - rect.left) * scaleX;
+        const y = (event.clientY - rect.top) * scaleY;
+        
+        const width = gameData.resolution[0];
+        const height = gameData.resolution[1];
+        const boxX = 8;
+        const boxWidth = width - 16;
+        
+        const numChoices = dialogue.choices.length;
+        const maxChoiceHeight = 14;
+        const minChoiceHeight = 10;
+        const choiceHeight = numChoices > 3 ? minChoiceHeight : maxChoiceHeight;
+        const choiceSpacing = 1;
+        const choiceStartY = height - 60 + 40;
+        
+        for (let idx = 0; idx < dialogue.choices.length; idx++) {
+          const choice = dialogue.choices[idx];
+          const choiceY = choiceStartY + (idx * (choiceHeight + choiceSpacing));
+          
+          if (x >= boxX + 8 && x <= boxX + boxWidth - 8 &&
+              y >= choiceY && y <= choiceY + choiceHeight) {
+            
+            // Apply flag if set
+            if (choice.setFlag) {
+              gameData.flags = gameData.flags.map(f => 
+                f.name === choice.setFlag 
+                  ? { ...f, value: choice.setFlagValue !== false }
+                  : f
+              );
+            }
+            
+            // Jump or advance
+            if (choice.enableGoto !== false && choice.goto !== undefined) {
+              currentScene = choice.goto;
+              currentDialogue = 0;
+            } else {
+              if (currentDialogue < scene.dialogues.length - 1) {
+                currentDialogue++;
+              } else if (currentScene < gameData.scenes.length - 1) {
+                currentScene++;
+                currentDialogue = 0;
+              }
+            }
+            
+            render();
+            return;
+          }
+        }
+        return;
+      }
+      
+      // Normal advancement
       if (currentDialogue < scene.dialogues.length - 1) {
         currentDialogue++;
       } else if (currentScene < gameData.scenes.length - 1) {

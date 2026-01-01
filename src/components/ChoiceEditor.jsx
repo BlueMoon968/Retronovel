@@ -77,6 +77,7 @@ const ChoiceEditor = ({ dialogue, sceneIndex, dialogueIndex, updateDialogue, tot
             </button>
           </div>
 
+          {/* Choice text */}
           <input
             type="text"
             value={choice.text}
@@ -89,66 +90,95 @@ const ChoiceEditor = ({ dialogue, sceneIndex, dialogueIndex, updateDialogue, tot
               border: '1px solid #4a5568',
               color: '#fff',
               fontSize: '10px',
-              marginBottom: '4px',
+              marginBottom: '6px',
               fontFamily: 'inherit'
             }}
           />
 
-          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-            <span style={{ fontSize: '9px', color: '#888' }}>→ Go to scene:</span>
+          {/* Enable goto scene toggle */}
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: '9px',
+            color: '#888',
+            marginBottom: '4px'
+          }}>
             <input
-              type="number"
-              min="1"
-              max={totalScenes}
-              value={choice.goto + 1}
-              onChange={(e) => updateChoice(idx, 'goto', Math.max(0, Math.min(totalScenes - 1, parseInt(e.target.value) - 1)))}
+              type="checkbox"
+              checked={choice.enableGoto !== false}
+              onChange={(e) => updateChoice(idx, 'enableGoto', e.target.checked)}
+              style={{ marginRight: '4px' }}
+            />
+            Jump to scene
+          </label>
+
+          {/* Goto scene selector - only if enabled */}
+          {choice.enableGoto !== false && (
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '6px', paddingLeft: '16px' }}>
+              <span style={{ fontSize: '9px', color: '#888' }}>→ Go to scene:</span>
+              <input
+                type="number"
+                min="1"
+                max={totalScenes}
+                value={(choice.goto || 0) + 1}
+                onChange={(e) => updateChoice(idx, 'goto', Math.max(0, Math.min(totalScenes - 1, parseInt(e.target.value) - 1)))}
+                style={{
+                  width: '50px',
+                  padding: '2px 4px',
+                  background: '#16213e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '10px',
+                  fontFamily: 'inherit'
+                }}
+              />
+            </div>
+          )}
+
+          {/* Set flag selector */}
+          <div style={{ marginTop: '4px' }}>
+            <label style={{ fontSize: '9px', color: '#888', display: 'block', marginBottom: '2px' }}>
+              Set flag (optional):
+            </label>
+            <select
+              value={choice.setFlag || ''}
+              onChange={(e) => updateChoice(idx, 'setFlag', e.target.value)}
               style={{
-                width: '50px',
+                width: '100%',
                 padding: '2px 4px',
                 background: '#16213e',
                 border: '1px solid #4a5568',
                 color: '#fff',
                 fontSize: '10px',
-                fontFamily: 'inherit'
+                fontFamily: 'inherit',
+                marginBottom: '4px'
               }}
-            />
+            >
+              <option value="">None</option>
+              {flags.map(flag => (
+                <option key={flag.id} value={flag.name}>{flag.name}</option>
+              ))}
+            </select>
+            
+            {/* Set flag value toggle - only if flag selected */}
+            {choice.setFlag && (
+              <label style={{
+                fontSize: '9px',
+                color: '#888',
+                display: 'flex',
+                alignItems: 'center',
+                paddingLeft: '16px'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={choice.setFlagValue !== false}
+                  onChange={(e) => updateChoice(idx, 'setFlagValue', e.target.checked)}
+                  style={{ marginRight: '4px' }}
+                />
+                Set to {choice.setFlagValue !== false ? 'TRUE' : 'FALSE'}
+              </label>
+            )}
           </div>
-
-        <div style={{ marginTop: '4px' }}>
-                <label style={{ fontSize: '9px', color: '#888', display: 'block', marginBottom: '2px' }}>
-                  Set flag (optional):
-                </label>
-                <select
-                  value={choice.setFlag || ''}
-                  onChange={(e) => updateChoice(idx, 'setFlag', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '2px 4px',
-                    background: '#16213e',
-                    border: '1px solid #4a5568',
-                    color: '#fff',
-                    fontSize: '10px',
-                    fontFamily: 'inherit'
-                  }}
-                >
-                  {flags.map(flag => (
-                    <option key={flag.id} value={flag.name}>{flag.name}</option>
-                  ))}
-                  <option value="">None</option>
-                  {/* */}
-                </select>
-                {choice.setFlag && (
-                  <label style={{ fontSize: '9px', color: '#888', display: 'flex', alignItems: 'center', marginTop: '2px' }}>
-                    <input
-                      type="checkbox"
-                      checked={choice.setFlagValue !== false}
-                      onChange={(e) => updateChoice(idx, 'setFlagValue', e.target.checked)}
-                      style={{ marginRight: '4px' }}
-                    />
-                    Set to {choice.setFlagValue !== false ? 'TRUE' : 'FALSE'}
-                  </label>
-                )}
-              </div>
         </div>
       ))}
 
