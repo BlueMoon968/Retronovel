@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2024-12-30
+
+### 🎨 NINEPATCH UI SYSTEM - Phoenix Wright Style!
+- ✨ **NEW:** NinePatch rendering system for dialogue boxes
+- ✨ **NEW:** Custom msgbox.png support (16×16 NinePatch)
+- ✨ **NEW:** Custom namebox.png support (16×16 NinePatch)
+- 📦 Namebox adapts automatically to speaker name length
+- 🎮 Phoenix Wright-inspired UI aesthetic
+- 📁 UI Graphics section in Assets tab
+- 🔧 Fallback rendering if NinePatch images not loaded
+
+### Technical
+- Implemented drawNinePatch() function for 9-slice rendering
+- NinePatch divides 16×16 into corners (5×5), edges (6×), center (6×6)
+- msgbox: fixed size dialogue box
+- namebox: dynamic width based on text measurement
+- Default graphics loaded from `/public/graphics/`
+- Custom graphics uploadable and base64 encoded in JSON
+
+### File Structure
+- `/public/graphics/msgbox.png` - Message box (user adds)
+- `/public/graphics/namebox.png` - Name box (user adds)
+- Both files should be 16×16 PNG in NinePatch format
+
+---
+
 ## [0.3.0] - 2024-12-30
 
 ### 🎨 THE FONT FIX - PIXEL PERFECT TEXT!

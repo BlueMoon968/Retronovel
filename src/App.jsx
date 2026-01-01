@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// Retronovel Editor - GBA/NDS Style
+// Visual Novel Editor - GBA/NDS Style
 // Resolution: 256x192 (NDS single screen)
 
 const VNEditor = () => {
@@ -8,9 +8,11 @@ const VNEditor = () => {
     title: "My Visual Novel",
     resolution: [256, 192],
     settings: {
-      scale: 2,           // Viewport scale (1-4)
+      scale: 2,
       fontFamily: 'dogica, monospace',
-      customFont: null    // Base64 encoded custom font
+      customFont: null,
+      customMsgBox: null,    // Custom message box (NinePatch)
+      customNameBox: null    // Custom name box (NinePatch)
     },
     scenes: [
       {
@@ -23,7 +25,7 @@ const VNEditor = () => {
         dialogues: [
           {
             speaker: "Narrator",
-            text: "Welcome to the Retronovel Editor!",
+            text: "Welcome to the Visual Novel Editor!",
           }
         ],
         choices: []
@@ -40,6 +42,68 @@ const VNEditor = () => {
   
   const canvasRef = useRef(null);
   const fontFaceRef = useRef(null);
+  const msgBoxImageRef = useRef(null);
+  const nameBoxImageRef = useRef(null);
+
+  // Load default UI graphics
+  useEffect(() => {
+    const loadImages = async () => {
+      // Force load msgbox
+      const msgBoxImg = new Image();
+      msgBoxImg.src = '/graphics/msgbox.png';
+      await new Promise((resolve) => {
+        msgBoxImg.onload = () => {
+          msgBoxImageRef.current = msgBoxImg;
+          resolve();
+        };
+        msgBoxImg.onerror = () => {
+          console.log('Default msgbox.png not found - using fallback');
+          resolve();
+        };
+      });
+
+      // Force load namebox
+      const nameBoxImg = new Image();
+      nameBoxImg.src = '/graphics/namebox.png';
+      await new Promise((resolve) => {
+        nameBoxImg.onload = () => {
+          nameBoxImageRef.current = nameBoxImg;
+          resolve();
+        };
+        nameBoxImg.onerror = () => {
+          console.log('Default namebox.png not found - using fallback');
+          resolve();
+        };
+      });
+
+      // Force initial render
+      setProject(p => ({...p}));
+    };
+
+    loadImages();
+  }, []);
+
+  // Load custom msgbox if set
+  useEffect(() => {
+    if (project.settings.customMsgBox) {
+      const img = new Image();
+      img.src = project.settings.customMsgBox;
+      img.onload = () => {
+        msgBoxImageRef.current = img;
+      };
+    }
+  }, [project.settings.customMsgBox]);
+
+  // Load custom namebox if set
+  useEffect(() => {
+    if (project.settings.customNameBox) {
+      const img = new Image();
+      img.src = project.settings.customNameBox;
+      img.onload = () => {
+        nameBoxImageRef.current = img;
+      };
+    }
+  }, [project.settings.customNameBox]);
 
   // Load custom font if available
   useEffect(() => {
@@ -52,6 +116,49 @@ const VNEditor = () => {
     }
   }, [project.settings.customFont]);
 
+
+  // Force render after font loads
+  useEffect(() => {
+    document.fonts.ready.then(() => {
+      // Force re-render when font is ready
+      setProject(p => ({...p}));
+    });
+  }, []);
+
+  // NinePatch drawing function
+  const drawNinePatch = (ctx, image, x, y, width, height) => {
+    if (!image || !image.complete) return false;
+
+    const srcSize = 16; // Source image is 16x16
+    const corner = 5;   // Corner size
+    const edge = 6;     // Edge size (middle section)
+
+    // Draw corners (fixed size)
+    // Top-left
+    ctx.drawImage(image, 0, 0, corner, corner, x, y, corner, corner);
+    // Top-right
+    ctx.drawImage(image, srcSize - corner, 0, corner, corner, x + width - corner, y, corner, corner);
+    // Bottom-left
+    ctx.drawImage(image, 0, srcSize - corner, corner, corner, x, y + height - corner, corner, corner);
+    // Bottom-right
+    ctx.drawImage(image, srcSize - corner, srcSize - corner, corner, corner, x + width - corner, y + height - corner, corner, corner);
+
+    // Draw edges (stretched)
+    // Top edge
+    ctx.drawImage(image, corner, 0, edge, corner, x + corner, y, width - (corner * 2), corner);
+    // Bottom edge
+    ctx.drawImage(image, corner, srcSize - corner, edge, corner, x + corner, y + height - corner, width - (corner * 2), corner);
+    // Left edge
+    ctx.drawImage(image, 0, corner, corner, edge, x, y + corner, corner, height - (corner * 2));
+    // Right edge
+    ctx.drawImage(image, srcSize - corner, corner, corner, edge, x + width - corner, y + corner, corner, height - (corner * 2));
+
+    // Draw center (stretched)
+    ctx.drawImage(image, corner, corner, edge, edge, x + corner, y + corner, width - (corner * 2), height - (corner * 2));
+
+    return true;
+  };
+
   // Render the preview
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -60,7 +167,6 @@ const VNEditor = () => {
     const ctx = canvas.getContext('2d', { alpha: false });
     const [width, height] = project.resolution;
     
-    // Disable image smoothing for pixel-perfect rendering
     ctx.imageSmoothingEnabled = false;
     
     // Clear canvas
@@ -121,32 +227,59 @@ const VNEditor = () => {
       // LAYER 3: Draw dialogue box (UI layer)
       const dialogue = scene.dialogues[currentDialogueIndex];
       if (dialogue) {
-        // Box background
-        ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
-        ctx.fillRect(8, height - 60, width - 16, 52);
-        
-        // Box border
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(8, height - 60, width - 16, 52);
-
-        // Use project font setting
         const fontFamily = project.settings.customFont ? 'CustomFont, dogica, monospace' : 'dogica, monospace';
         
-        // Speaker name
-        ctx.fillStyle = '#ffd700';
+        const boxX = 8;
+        const boxY = height - 60;
+        const boxWidth = width - 16;
+        const boxHeight = 52;
+
+        // Draw message box using NinePatch
+        const msgBoxDrawn = drawNinePatch(ctx, msgBoxImageRef.current, boxX, boxY, boxWidth, boxHeight);
+        
+        if (!msgBoxDrawn) {
+          // Fallback if NinePatch fails
+          ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
+          ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+        }
+
+        // Calculate namebox size based on speaker name
         ctx.font = `bold 8px ${fontFamily}`;
-        ctx.fillText(dialogue.speaker, 16, height - 48);
+        const nameWidth = ctx.measureText(dialogue.speaker).width;
+        const nameBoxWidth = nameWidth + 16; // Padding
+        const nameBoxHeight = 16;
+        const nameBoxX = boxX + 4;
+        const nameBoxY = boxY - nameBoxHeight + 4;
+
+        // Draw namebox using NinePatch
+        const nameBoxDrawn = drawNinePatch(ctx, nameBoxImageRef.current, nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
+        
+        if (!nameBoxDrawn) {
+          // Fallback if NinePatch fails
+          ctx.fillStyle = 'rgba(30, 30, 50, 0.9)';
+          ctx.fillRect(nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
+          ctx.strokeStyle = '#ffd700';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
+        }
+
+        // Speaker name
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold 8px ${fontFamily}`;
+        ctx.fillText(dialogue.speaker, nameBoxX + 8, nameBoxY + 11);
 
         // Dialogue text
         ctx.fillStyle = '#ffffff';
         ctx.font = `8px ${fontFamily}`;
         
         // Word wrap
-        const maxWidth = width - 32;
+        const maxWidth = boxWidth - 16;
         const words = dialogue.text.split(' ');
         let line = '';
-        let y = height - 34;
+        let y = boxY + 16;
         const lineHeight = 12;
 
         for (let word of words) {
@@ -154,29 +287,29 @@ const VNEditor = () => {
           const metrics = ctx.measureText(testLine);
           
           if (metrics.width > maxWidth && line !== '') {
-            ctx.fillText(line, 16, y);
+            ctx.fillText(line, boxX + 8, y);
             line = word + ' ';
             y += lineHeight;
           } else {
             line = testLine;
           }
         }
-        ctx.fillText(line, 16, y);
+        ctx.fillText(line, boxX + 8, y);
 
         // Arrow indicator
         if (currentDialogueIndex < scene.dialogues.length - 1 || currentSceneIndex < project.scenes.length - 1) {
           ctx.fillStyle = '#ffd700';
           ctx.beginPath();
-          ctx.moveTo(width - 20, height - 16);
-          ctx.lineTo(width - 16, height - 12);
-          ctx.lineTo(width - 20, height - 8);
+          ctx.moveTo(boxX + boxWidth - 12, boxY + boxHeight - 8);
+          ctx.lineTo(boxX + boxWidth - 8, boxY + boxHeight - 4);
+          ctx.lineTo(boxX + boxWidth - 12, boxY + boxHeight);
           ctx.fill();
         }
       }
 
       // Draw scene indicator
       ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, 60, 16);
+      ctx.fillRect(0, 0, 80, 16);
       ctx.fillStyle = '#ffffff';
       ctx.font = `8px ${project.settings.customFont ? 'CustomFont, dogica, monospace' : 'dogica, monospace'}`;
       ctx.fillText(`Scene ${currentSceneIndex + 1}/${project.scenes.length}`, 4, 10);
@@ -278,7 +411,43 @@ const VNEditor = () => {
     reader.readAsDataURL(file);
   };
 
-  // Export HTML
+  // Upload custom msgbox
+  const uploadMsgBox = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setProject({
+        ...project,
+        settings: {
+          ...project.settings,
+          customMsgBox: e.target.result
+        }
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Upload custom namebox
+  const uploadNameBox = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setProject({
+        ...project,
+        settings: {
+          ...project.settings,
+          customNameBox: e.target.result
+        }
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Export HTML with NinePatch support
   const exportHTML = () => {
     const scale = project.settings.scale;
     const displayWidth = 256 * scale;
@@ -301,6 +470,7 @@ const VNEditor = () => {
     @font-face {
       font-family: 'dogica';
       src: url('https://fonts.cdnfonts.com/s/37581/dogica.woff') format('woff');
+      font-display: block;
     }
     ${fontFaceCSS}
     
@@ -352,6 +522,42 @@ const VNEditor = () => {
     
     const fontFamily = gameData.settings.customFont ? 'CustomFont, dogica, monospace' : 'dogica, monospace';
     
+    // Load NinePatch images
+    const msgBoxImg = new Image();
+    const nameBoxImg = new Image();
+    
+    if (gameData.settings.customMsgBox) {
+      msgBoxImg.src = gameData.settings.customMsgBox;
+    }
+    if (gameData.settings.customNameBox) {
+      nameBoxImg.src = gameData.settings.customNameBox;
+    }
+    
+    function drawNinePatch(ctx, image, x, y, width, height) {
+      if (!image || !image.complete) return false;
+      
+      const srcSize = 16;
+      const corner = 5;
+      const edge = 6;
+      
+      // Corners
+      ctx.drawImage(image, 0, 0, corner, corner, x, y, corner, corner);
+      ctx.drawImage(image, srcSize - corner, 0, corner, corner, x + width - corner, y, corner, corner);
+      ctx.drawImage(image, 0, srcSize - corner, corner, corner, x, y + height - corner, corner, corner);
+      ctx.drawImage(image, srcSize - corner, srcSize - corner, corner, corner, x + width - corner, y + height - corner, corner, corner);
+      
+      // Edges
+      ctx.drawImage(image, corner, 0, edge, corner, x + corner, y, width - (corner * 2), corner);
+      ctx.drawImage(image, corner, srcSize - corner, edge, corner, x + corner, y + height - corner, width - (corner * 2), corner);
+      ctx.drawImage(image, 0, corner, corner, edge, x, y + corner, corner, height - (corner * 2));
+      ctx.drawImage(image, srcSize - corner, corner, corner, edge, x + width - corner, y + corner, corner, height - (corner * 2));
+      
+      // Center
+      ctx.drawImage(image, corner, corner, edge, edge, x + corner, y + corner, width - (corner * 2), height - (corner * 2));
+      
+      return true;
+    }
+    
     function render() {
       const [width, height] = gameData.resolution;
       ctx.fillStyle = '#000';
@@ -360,7 +566,7 @@ const VNEditor = () => {
       const scene = gameData.scenes[currentScene];
       if (!scene) return;
       
-      // LAYER 1: Background
+      // Background
       if (scene.backgroundImage) {
         const img = new Image();
         img.src = scene.backgroundImage;
@@ -375,7 +581,6 @@ const VNEditor = () => {
       }
       
       function drawCharacter() {
-        // LAYER 2: Character
         if (scene.characterImage) {
           const img = new Image();
           img.src = scene.characterImage;
@@ -407,27 +612,53 @@ const VNEditor = () => {
       }
       
       function drawUI() {
-        // LAYER 3: Dialogue UI
         const dialogue = scene.dialogues[currentDialogue];
         if (dialogue) {
-          ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
-          ctx.fillRect(8, height - 60, width - 16, 52);
+          const boxX = 8;
+          const boxY = height - 60;
+          const boxWidth = width - 16;
+          const boxHeight = 52;
           
-          ctx.strokeStyle = '#fff';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(8, height - 60, width - 16, 52);
+          // Draw message box
+          const msgBoxDrawn = drawNinePatch(ctx, msgBoxImg, boxX, boxY, boxWidth, boxHeight);
+          if (!msgBoxDrawn) {
+            ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
+            ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+          }
           
+          // Calculate and draw namebox
+          ctx.font = 'bold 10px ' + fontFamily;
+          const nameWidth = ctx.measureText(dialogue.speaker).width;
+          const nameBoxWidth = nameWidth + 16;
+          const nameBoxHeight = 16;
+          const nameBoxX = boxX + 4;
+          const nameBoxY = boxY - nameBoxHeight + 4;
+          
+          const nameBoxDrawn = drawNinePatch(ctx, nameBoxImg, nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
+          if (!nameBoxDrawn) {
+            ctx.fillStyle = 'rgba(30, 30, 50, 0.9)';
+            ctx.fillRect(nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
+          }
+          
+          // Speaker name
           ctx.fillStyle = '#ffd700';
           ctx.font = 'bold 10px ' + fontFamily;
-          ctx.fillText(dialogue.speaker, 16, height - 48);
+          ctx.fillText(dialogue.speaker, nameBoxX + 8, nameBoxY + 11);
           
+          // Dialogue text
           ctx.fillStyle = '#ffffff';
           ctx.font = '8px ' + fontFamily;
           
-          const maxWidth = width - 32;
+          const maxWidth = boxWidth - 16;
           const words = dialogue.text.split(' ');
           let line = '';
-          let y = height - 34;
+          let y = boxY + 16;
           const lineHeight = 12;
           
           for (let word of words) {
@@ -435,21 +666,22 @@ const VNEditor = () => {
             const metrics = ctx.measureText(testLine);
             
             if (metrics.width > maxWidth && line !== '') {
-              ctx.fillText(line, 16, y);
+              ctx.fillText(line, boxX + 8, y);
               line = word + ' ';
               y += lineHeight;
             } else {
               line = testLine;
             }
           }
-          ctx.fillText(line, 16, y);
+          ctx.fillText(line, boxX + 8, y);
           
+          // Arrow
           if (currentDialogue < scene.dialogues.length - 1 || currentScene < gameData.scenes.length - 1) {
             ctx.fillStyle = '#ffd700';
             ctx.beginPath();
-            ctx.moveTo(width - 20, height - 16);
-            ctx.lineTo(width - 16, height - 12);
-            ctx.lineTo(width - 20, height - 8);
+            ctx.moveTo(boxX + boxWidth - 12, boxY + boxHeight - 8);
+            ctx.lineTo(boxX + boxWidth - 8, boxY + boxHeight - 4);
+            ctx.lineTo(boxX + boxWidth - 12, boxY + boxHeight);
             ctx.fill();
           }
         }
@@ -510,12 +742,13 @@ const VNEditor = () => {
     reader.onload = (e) => {
       try {
         const imported = JSON.parse(e.target.result);
-        // Ensure settings exist for backward compatibility
         if (!imported.settings) {
           imported.settings = {
             scale: 2,
             fontFamily: 'dogica, monospace',
-            customFont: null
+            customFont: null,
+            customMsgBox: null,
+            customNameBox: null
           };
         }
         setProject(imported);
@@ -1028,7 +1261,7 @@ const VNEditor = () => {
             </div>
 
             {/* Backgrounds Section */}
-            <div>
+            <div style={{ marginBottom: '24px' }}>
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -1108,6 +1341,133 @@ const VNEditor = () => {
                   No backgrounds uploaded
                 </div>
               )}
+            </div>
+
+            {/* UI Graphics Section */}
+            <div>
+              <h3 style={{ fontSize: '14px', color: '#f39c12', marginBottom: '12px' }}>
+                UI Graphics (NinePatch 16×16)
+              </h3>
+              
+              {/* MsgBox */}
+              <div style={{
+                padding: '12px',
+                background: '#2a2a3e',
+                border: '1px solid #4a5568',
+                marginBottom: '12px'
+              }}>
+                <h4 style={{ fontSize: '11px', marginBottom: '8px', color: '#fff' }}>
+                  Message Box
+                </h4>
+                <label style={{
+                  display: 'block',
+                  padding: '8px',
+                  background: '#27ae60',
+                  color: '#fff',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  fontSize: '10px',
+                  marginBottom: '8px',
+                  fontFamily: 'inherit'
+                }}>
+                  Upload Custom MsgBox (16×16)
+                  <input
+                    type="file"
+                    accept="image/png"
+                    onChange={uploadMsgBox}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+                {project.settings.customMsgBox && (
+                  <div style={{ fontSize: '10px', color: '#888' }}>
+                    ✓ Custom msgbox loaded
+                    <button
+                      onClick={() => setProject({
+                        ...project,
+                        settings: { ...project.settings, customMsgBox: null }
+                      })}
+                      style={{
+                        marginLeft: '8px',
+                        padding: '2px 6px',
+                        background: '#e74c3c',
+                        color: '#fff',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '9px',
+                        fontFamily: 'inherit'
+                      }}
+                    >
+                      Reset
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* NameBox */}
+              <div style={{
+                padding: '12px',
+                background: '#2a2a3e',
+                border: '1px solid #4a5568'
+              }}>
+                <h4 style={{ fontSize: '11px', marginBottom: '8px', color: '#fff' }}>
+                  Name Box
+                </h4>
+                <label style={{
+                  display: 'block',
+                  padding: '8px',
+                  background: '#27ae60',
+                  color: '#fff',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  fontSize: '10px',
+                  marginBottom: '8px',
+                  fontFamily: 'inherit'
+                }}>
+                  Upload Custom NameBox (16×16)
+                  <input
+                    type="file"
+                    accept="image/png"
+                    onChange={uploadNameBox}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+                {project.settings.customNameBox && (
+                  <div style={{ fontSize: '10px', color: '#888' }}>
+                    ✓ Custom namebox loaded
+                    <button
+                      onClick={() => setProject({
+                        ...project,
+                        settings: { ...project.settings, customNameBox: null }
+                      })}
+                      style={{
+                        marginLeft: '8px',
+                        padding: '2px 6px',
+                        background: '#e74c3c',
+                        color: '#fff',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '9px',
+                        fontFamily: 'inherit'
+                      }}
+                    >
+                      Reset
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div style={{
+                marginTop: '12px',
+                padding: '8px',
+                background: 'rgba(52, 152, 219, 0.1)',
+                border: '1px solid #3498db',
+                fontSize: '10px',
+                lineHeight: '1.4',
+                color: '#888'
+              }}>
+                📝 NinePatch format: 16×16 PNG divided into 9 parts (corners + edges + center). 
+                Default graphics in /public/graphics/
+              </div>
             </div>
           </div>
         )}
@@ -1313,7 +1673,7 @@ const VNEditor = () => {
                 <li>Export HTML for a standalone file</li>
                 <li>Export JSON to save/share projects</li>
                 <li>Import JSON to load saved projects</li>
-                <li>Settings (scale, font) are saved in export</li>
+                <li>Settings (scale, font, UI) are saved</li>
               </ul>
             </div>
           </div>
