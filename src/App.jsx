@@ -376,6 +376,65 @@ const VNEditor = () => {
               </div>
               {project.backgrounds.length === 0 && <div style={{ padding: '16px', background: '#2a2a3e', border: '1px dashed #4a5568', textAlign: 'center', fontSize: '11px', color: '#888' }}>No backgrounds loaded</div>}
             </div>
+
+            {/* CUSTOM UI GRAPHICS */}
+            <div style={{ marginTop: '24px' }}>
+              <h3 style={{ fontSize: '14px', color: '#f39c12', marginBottom: '12px' }}>Custom UI Graphics</h3>
+              
+              {/* Message Box */}
+              <div style={{ padding: '12px', background: '#2a2a3e', border: '1px solid #4a5568', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '11px', color: '#f39c12' }}>Message Box (16×16 PNG)</span>
+                  {project.settings.customMsgBox && (
+                    <button onClick={() => setProject({ ...project, settings: { ...project.settings, customMsgBox: null } })} style={{ padding: '4px 8px', background: '#e74c3c', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '10px', fontFamily: 'inherit' }}>Remove</button>
+                  )}
+                </div>
+                {project.settings.customMsgBox ? (
+                  <img src={project.settings.customMsgBox} alt="Custom MsgBox" style={{ width: '64px', height: '64px', objectFit: 'contain', imageRendering: 'pixelated', background: '#1a1a2e', border: '1px solid #4a5568', padding: '4px' }} />
+                ) : (
+                  <label style={{ display: 'block', padding: '12px', background: '#1a1a2e', border: '1px dashed #4a5568', textAlign: 'center', cursor: 'pointer', fontSize: '10px', color: '#888' }}>
+                    Click to upload
+                    <input type="file" accept="image/png" onChange={uploadCustomMsgBox} style={{ display: 'none' }} />
+                  </label>
+                )}
+              </div>
+
+              {/* Name Box */}
+              <div style={{ padding: '12px', background: '#2a2a3e', border: '1px solid #4a5568', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '11px', color: '#f39c12' }}>Name Box (16×16 PNG)</span>
+                  {project.settings.customNameBox && (
+                    <button onClick={() => setProject({ ...project, settings: { ...project.settings, customNameBox: null } })} style={{ padding: '4px 8px', background: '#e74c3c', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '10px', fontFamily: 'inherit' }}>Remove</button>
+                  )}
+                </div>
+                {project.settings.customNameBox ? (
+                  <img src={project.settings.customNameBox} alt="Custom NameBox" style={{ width: '64px', height: '64px', objectFit: 'contain', imageRendering: 'pixelated', background: '#1a1a2e', border: '1px solid #4a5568', padding: '4px' }} />
+                ) : (
+                  <label style={{ display: 'block', padding: '12px', background: '#1a1a2e', border: '1px dashed #4a5568', textAlign: 'center', cursor: 'pointer', fontSize: '10px', color: '#888' }}>
+                    Click to upload
+                    <input type="file" accept="image/png" onChange={uploadCustomNameBox} style={{ display: 'none' }} />
+                  </label>
+                )}
+              </div>
+
+              {/* Transition Gradient */}
+              <div style={{ padding: '12px', background: '#2a2a3e', border: '1px solid #4a5568' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '11px', color: '#f39c12' }}>Transition Gradient (256×192 PNG)</span>
+                  {project.settings.customTransition && (
+                    <button onClick={() => setProject({ ...project, settings: { ...project.settings, customTransition: null } })} style={{ padding: '4px 8px', background: '#e74c3c', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '10px', fontFamily: 'inherit' }}>Remove</button>
+                  )}
+                </div>
+                {project.settings.customTransition ? (
+                  <img src={project.settings.customTransition} alt="Custom Transition" style={{ width: '100%', height: 'auto', objectFit: 'contain', imageRendering: 'pixelated', background: '#1a1a2e', border: '1px solid #4a5568', padding: '4px' }} />
+                ) : (
+                  <label style={{ display: 'block', padding: '12px', background: '#1a1a2e', border: '1px dashed #4a5568', textAlign: 'center', cursor: 'pointer', fontSize: '10px', color: '#888' }}>
+                    Click to upload
+                    <input type="file" accept="image/png" onChange={uploadCustomTransition} style={{ display: 'none' }} />
+                  </label>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -386,12 +445,6 @@ const VNEditor = () => {
             <input type="range" min="1" max="4" value={project.settings.scale} onChange={(e) => setProject({ ...project, settings: { ...project.settings, scale: parseInt(e.target.value) } })} style={{ width: '100%', marginBottom: '16px' }} />
             <label style={{ fontSize: '11px', marginBottom: '4px', display: 'block' }}>Transition Duration ({project.settings.transitionDuration}ms):</label>
             <input type="range" min="200" max="2000" step="100" value={project.settings.transitionDuration} onChange={(e) => setProject({ ...project, settings: { ...project.settings, transitionDuration: parseInt(e.target.value) } })} style={{ width: '100%', marginBottom: '16px' }} />
-            <div style={{ padding: '12px', background: '#2a2a3e', border: '1px solid #4a5568', marginBottom: '16px' }}>
-              <h4 style={{ fontSize: '12px', marginBottom: '8px', color: '#f39c12' }}>Custom UI Graphics</h4>
-              <label style={{ display: 'block', fontSize: '11px', marginBottom: '8px', cursor: 'pointer', padding: '8px', background: '#1a1a2e', border: '1px solid #4a5568', textAlign: 'center' }}>Upload Message Box (16×16 PNG)<input type="file" accept="image/png" onChange={uploadCustomMsgBox} style={{ display: 'none' }} /></label>
-              <label style={{ display: 'block', fontSize: '11px', marginBottom: '8px', cursor: 'pointer', padding: '8px', background: '#1a1a2e', border: '1px solid #4a5568', textAlign: 'center' }}>Upload Name Box (16×16 PNG)<input type="file" accept="image/png" onChange={uploadCustomNameBox} style={{ display: 'none' }} /></label>
-              <label style={{ display: 'block', fontSize: '11px', cursor: 'pointer', padding: '8px', background: '#1a1a2e', border: '1px solid #4a5568', textAlign: 'center' }}>Upload Transition Gradient (256×192 PNG)<input type="file" accept="image/png" onChange={uploadCustomTransition} style={{ display: 'none' }} /></label>
-            </div>
             <FlagsManager flags={project.flags} updateFlags={(flags) => setProject({ ...project, flags })} />
           </div>
         )}

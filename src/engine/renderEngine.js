@@ -82,13 +82,23 @@ export const drawChoices = (ctx, dialogue, canvasWidth, canvasHeight, fontFamily
   if (!dialogue.choices || dialogue.choices.length === 0) return null;
   
   const numChoices = dialogue.choices.length;
-  const choiceHeight = 16;
+  const baseChoiceHeight = 16;
   const choiceSpacing = 4;
   const choiceWidth = 200;
   
-  // Center choices on screen
+  // Adjust height and font based on number of choices
+  const choiceHeight = numChoices > 4 ? 12 : (numChoices > 2 ? 14 : baseChoiceHeight);
+  const fontSize = numChoices > 4 ? '7px' : '8px';
+  
+  // Calculate total height
   const totalHeight = (numChoices * choiceHeight) + ((numChoices - 1) * choiceSpacing);
-  const startY = (canvasHeight - totalHeight) / 2;
+  
+  // Position choices ABOVE the dialogue box (which is at canvasHeight - 60)
+  const dialogueBoxY = canvasHeight - 60;
+  const choicesY = dialogueBoxY - totalHeight - 10; // 10px margin
+  
+  // If choices would go off top, center them instead
+  const startY = choicesY < 10 ? Math.max(10, (canvasHeight - totalHeight) / 2) : choicesY;
   const startX = (canvasWidth - choiceWidth) / 2;
   
   const choicePositions = [];
@@ -96,20 +106,16 @@ export const drawChoices = (ctx, dialogue, canvasWidth, canvasHeight, fontFamily
   dialogue.choices.forEach((choice, idx) => {
     const choiceY = startY + (idx * (choiceHeight + choiceSpacing));
     
-    // Background
     ctx.fillStyle = 'rgba(30, 30, 50, 0.95)';
     ctx.fillRect(startX, choiceY, choiceWidth, choiceHeight);
     
-    // Border
     ctx.strokeStyle = '#3498db';
     ctx.lineWidth = 2;
     ctx.strokeRect(startX, choiceY, choiceWidth, choiceHeight);
     
-    // Choice text
     ctx.fillStyle = '#fff';
-    ctx.font = '8px ' + fontFamily;
+    ctx.font = fontSize + ' ' + fontFamily;
     
-    // Truncate text if too long
     let choiceText = choice.text;
     const maxWidth = choiceWidth - 20;
     let textWidth = ctx.measureText('▸ ' + choiceText).width;
@@ -119,9 +125,9 @@ export const drawChoices = (ctx, dialogue, canvasWidth, canvasHeight, fontFamily
     }
     if (choiceText !== choice.text) choiceText += '...';
     
-    ctx.fillText('▸ ' + choiceText, startX + 8, choiceY + 11);
+    const textY = choiceY + (choiceHeight / 2) + 3;
+    ctx.fillText('▸ ' + choiceText, startX + 8, textY);
     
-    // Store position for click detection
     choicePositions.push({
       x: startX,
       y: choiceY,
