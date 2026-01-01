@@ -1,4 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { 
+  drawNinePatch, 
+  drawNameBox, 
+  drawDialogueText, 
+  drawChoices, 
+  drawArrow, 
+  drawSceneIndicator 
+} from './engine/renderEngine';
+import { exportRenderFunctions } from './engine/renderEngine';
+import ChoiceEditor from './components/ChoiceEditor';
 
 // Visual Novel Editor - GBA/NDS Style
 // Resolution: 256x192 (NDS single screen)
@@ -223,106 +233,90 @@ const VNEditor = () => {
       }
     }
 
+    // LAYER 3
     function drawUI() {
-      // LAYER 3: Draw dialogue box (UI layer)
       const dialogue = scene.dialogues[currentDialogueIndex];
-      if (dialogue) {
-        const fontFamily = project.settings.customFont ? 'CustomFont, dogica, monospace' : 'dogica, monospace';
-        
-        const boxX = 8;
-        const boxY = height - 60;
-        const boxWidth = width - 16;
-        const boxHeight = 52;
+      if (!dialogue) return;
+      
+      const fontFamily = project.settings.customFont ? 'CustomFont, dogica, monospace' : 'dogica, monospace';
+      const boxX = 8;
+      const boxY = height - 60;
+      const boxWidth = width - 16;
+      const boxHeight = 52;
 
-        // Draw message box using NinePatch
-        const msgBoxDrawn = drawNinePatch(ctx, msgBoxImageRef.current, boxX, boxY, boxWidth, boxHeight);
-        
-        if (!msgBoxDrawn) {
-          // Fallback if NinePatch fails
-          ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
-          ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-          ctx.strokeStyle = '#fff';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
-        }
-
-        // Calculate namebox size based on speaker name
-        ctx.font = `bold 8px ${fontFamily}`;
-        const nameWidth = ctx.measureText(dialogue.speaker).width;
-        const nameBoxWidth = nameWidth + 16; // Padding
-        const nameBoxHeight = 16;
-        const nameBoxX = boxX + 4;
-        const nameBoxY = boxY - nameBoxHeight + 4;
-
-        // Draw namebox using NinePatch
-        const nameBoxDrawn = drawNinePatch(ctx, nameBoxImageRef.current, nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
-        
-        if (!nameBoxDrawn) {
-          // Fallback if NinePatch fails
-          ctx.fillStyle = 'rgba(30, 30, 50, 0.9)';
-          ctx.fillRect(nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
-          ctx.strokeStyle = '#ffd700';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
-        }
-
-        // Speaker name
-        ctx.fillStyle = '#ffffff';
-        ctx.font = `bold 8px ${fontFamily}`;
-        ctx.fillText(dialogue.speaker, nameBoxX + 8, nameBoxY + 11);
-
-        // Dialogue text
-        ctx.fillStyle = '#ffffff';
-        ctx.font = `8px ${fontFamily}`;
-        
-        // Word wrap
-        const maxWidth = boxWidth - 16;
-        const words = dialogue.text.split(' ');
-        let line = '';
-        let y = boxY + 16;
-        const lineHeight = 12;
-
-        for (let word of words) {
-          const testLine = line + word + ' ';
-          const metrics = ctx.measureText(testLine);
-          
-          if (metrics.width > maxWidth && line !== '') {
-            ctx.fillText(line, boxX + 8, y);
-            line = word + ' ';
-            y += lineHeight;
-          } else {
-            line = testLine;
-          }
-        }
-        ctx.fillText(line, boxX + 8, y);
-
-        // Arrow indicator
-        if (currentDialogueIndex < scene.dialogues.length - 1 || currentSceneIndex < project.scenes.length - 1) {
-          ctx.fillStyle = '#ffd700';
-          ctx.beginPath();
-          ctx.moveTo(boxX + boxWidth - 12, boxY + boxHeight - 8);
-          ctx.lineTo(boxX + boxWidth - 8, boxY + boxHeight - 4);
-          ctx.lineTo(boxX + boxWidth - 12, boxY + boxHeight);
-          ctx.fill();
-        }
+      // Message box
+      const msgBoxDrawn = drawNinePatch(ctx, msgBoxImageRef.current, boxX, boxY, boxWidth, boxHeight);
+      if (!msgBoxDrawn) {
+        ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
+        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
       }
 
-      // Draw scene indicator
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, 80, 16);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = `8px ${project.settings.customFont ? 'CustomFont, dogica, monospace' : 'dogica, monospace'}`;
-      ctx.fillText(`Scene ${currentSceneIndex + 1}/${project.scenes.length}`, 4, 10);
+      // Name box + speaker name
+      drawNameBox(ctx, nameBoxImageRef.current, dialogue.speaker, boxX, boxY, fontFamily);
+
+      // Dialogue text
+      const lastY = drawDialogueText(ctx, dialogue.text, boxX, boxY, boxWidth, fontFamily);
+
+      // Choices
+      drawChoices(ctx, dialogue, boxX, boxY, boxWidth, lastY, 12, fontFamily);
+
+      // Arrow
+      const hasMore = currentDialogueIndex < scene.dialogues.length - 1 || currentSceneIndex < project.scenes.length - 1;
+      const hasChoices = dialogue.choices && dialogue.choices.length > 0;
+      if (!hasChoices) {
+        drawArrow(ctx, boxX, boxY, boxWidth, boxHeight, hasMore);
+      }
+
+      // Scene indicator
+      drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, fontFamily);
     }
 
   }, [project, currentSceneIndex, currentDialogueIndex]);
 
-  // Handle canvas click to advance dialogue
-  const handleCanvasClick = () => {
+  const handleCanvasClick = (event) => {
     if (!isPlaying) return;
     
     const scene = project.scenes[currentSceneIndex];
+    const dialogue = scene.dialogues[currentDialogueIndex];
     
+    // Check if there are choices
+    if (dialogue.choices && dialogue.choices.length > 0) {
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = (event.clientX - rect.left) * scaleX;
+      const y = (event.clientY - rect.top) * scaleY;
+      
+      const [width, height] = project.resolution;
+      const boxX = 8;
+      const boxY = height - 60;
+      const boxWidth = width - 16;
+      
+      // Calculate choice positions (must match rendering logic)
+      const choiceStartY = boxY + 40; // Adjust based on text height
+      const choiceHeight = 14;
+      const choiceSpacing = 2;
+      
+      dialogue.choices.forEach((choice, idx) => {
+        const choiceY = choiceStartY + (idx * (choiceHeight + choiceSpacing));
+        
+        if (x >= boxX + 8 && x <= boxX + boxWidth - 8 &&
+            y >= choiceY && y <= choiceY + choiceHeight) {
+          // Choice clicked!
+          setCurrentSceneIndex(choice.goto);
+          setCurrentDialogueIndex(0);
+          return;
+        }
+      });
+      
+      return; // Don't advance if choices are present
+    }
+    
+    // Normal dialogue advancement
     if (currentDialogueIndex < scene.dialogues.length - 1) {
       setCurrentDialogueIndex(currentDialogueIndex + 1);
     } else if (currentSceneIndex < project.scenes.length - 1) {
@@ -514,6 +508,9 @@ const VNEditor = () => {
   <script>
     const gameData = ${JSON.stringify(project, null, 2)};
     
+    // Import render functions
+    ${exportRenderFunctions()}
+    
     let currentScene = 0;
     let currentDialogue = 0;
     const canvas = document.getElementById('game');
@@ -522,41 +519,11 @@ const VNEditor = () => {
     
     const fontFamily = gameData.settings.customFont ? 'CustomFont, dogica, monospace' : 'dogica, monospace';
     
-    // Load NinePatch images
+    // Load images
     const msgBoxImg = new Image();
     const nameBoxImg = new Image();
-    
-    if (gameData.settings.customMsgBox) {
-      msgBoxImg.src = gameData.settings.customMsgBox;
-    }
-    if (gameData.settings.customNameBox) {
-      nameBoxImg.src = gameData.settings.customNameBox;
-    }
-    
-    function drawNinePatch(ctx, image, x, y, width, height) {
-      if (!image || !image.complete) return false;
-      
-      const srcSize = 16;
-      const corner = 5;
-      const edge = 6;
-      
-      // Corners
-      ctx.drawImage(image, 0, 0, corner, corner, x, y, corner, corner);
-      ctx.drawImage(image, srcSize - corner, 0, corner, corner, x + width - corner, y, corner, corner);
-      ctx.drawImage(image, 0, srcSize - corner, corner, corner, x, y + height - corner, corner, corner);
-      ctx.drawImage(image, srcSize - corner, srcSize - corner, corner, corner, x + width - corner, y + height - corner, corner, corner);
-      
-      // Edges
-      ctx.drawImage(image, corner, 0, edge, corner, x + corner, y, width - (corner * 2), corner);
-      ctx.drawImage(image, corner, srcSize - corner, edge, corner, x + corner, y + height - corner, width - (corner * 2), corner);
-      ctx.drawImage(image, 0, corner, corner, edge, x, y + corner, corner, height - (corner * 2));
-      ctx.drawImage(image, srcSize - corner, corner, corner, edge, x + width - corner, y + corner, corner, height - (corner * 2));
-      
-      // Center
-      ctx.drawImage(image, corner, corner, edge, edge, x + corner, y + corner, width - (corner * 2), height - (corner * 2));
-      
-      return true;
-    }
+    if (gameData.settings.customMsgBox) msgBoxImg.src = gameData.settings.customMsgBox;
+    if (gameData.settings.customNameBox) nameBoxImg.src = gameData.settings.customNameBox;
     
     function render() {
       const [width, height] = gameData.resolution;
@@ -611,86 +578,27 @@ const VNEditor = () => {
         }
       }
       
+      // Use imported functions for UI
       function drawUI() {
         const dialogue = scene.dialogues[currentDialogue];
-        if (dialogue) {
-          const boxX = 8;
-          const boxY = height - 60;
-          const boxWidth = width - 16;
-          const boxHeight = 52;
-          
-          // Draw message box
-          const msgBoxDrawn = drawNinePatch(ctx, msgBoxImg, boxX, boxY, boxWidth, boxHeight);
-          if (!msgBoxDrawn) {
-            ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
-            ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
-          }
-          
-          // Calculate and draw namebox
-          ctx.font = 'bold 10px ' + fontFamily;
-          const nameWidth = ctx.measureText(dialogue.speaker).width;
-          const nameBoxWidth = nameWidth + 16;
-          const nameBoxHeight = 16;
-          const nameBoxX = boxX + 4;
-          const nameBoxY = boxY - nameBoxHeight + 4;
-          
-          const nameBoxDrawn = drawNinePatch(ctx, nameBoxImg, nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
-          if (!nameBoxDrawn) {
-            ctx.fillStyle = 'rgba(30, 30, 50, 0.9)';
-            ctx.fillRect(nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
-            ctx.strokeStyle = '#ffd700';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
-          }
-          
-          // Speaker name
-          ctx.fillStyle = '#ffd700';
-          ctx.font = 'bold 10px ' + fontFamily;
-          ctx.fillText(dialogue.speaker, nameBoxX + 8, nameBoxY + 11);
-          
-          // Dialogue text
-          ctx.fillStyle = '#ffffff';
-          ctx.font = '8px ' + fontFamily;
-          
-          const maxWidth = boxWidth - 16;
-          const words = dialogue.text.split(' ');
-          let line = '';
-          let y = boxY + 16;
-          const lineHeight = 12;
-          
-          for (let word of words) {
-            const testLine = line + word + ' ';
-            const metrics = ctx.measureText(testLine);
-            
-            if (metrics.width > maxWidth && line !== '') {
-              ctx.fillText(line, boxX + 8, y);
-              line = word + ' ';
-              y += lineHeight;
-            } else {
-              line = testLine;
-            }
-          }
-          ctx.fillText(line, boxX + 8, y);
-          
-          // Arrow
-          if (currentDialogue < scene.dialogues.length - 1 || currentScene < gameData.scenes.length - 1) {
-            ctx.fillStyle = '#ffd700';
-            ctx.beginPath();
-            ctx.moveTo(boxX + boxWidth - 12, boxY + boxHeight - 8);
-            ctx.lineTo(boxX + boxWidth - 8, boxY + boxHeight - 4);
-            ctx.lineTo(boxX + boxWidth - 12, boxY + boxHeight);
-            ctx.fill();
-          }
+        if (!dialogue) return;
+        
+        const boxX = 8;
+        const boxY = height - 60;
+        const boxWidth = width - 16;
+        const boxHeight = 52;
+
+        drawNinePatch(ctx, msgBoxImg, boxX, boxY, boxWidth, boxHeight);
+        drawNameBox(ctx, nameBoxImg, dialogue.speaker, boxX, boxY, fontFamily);
+        const lastY = drawDialogueText(ctx, dialogue.text, boxX, boxY, boxWidth, fontFamily);
+        drawChoices(ctx, dialogue, boxX, boxY, boxWidth, lastY, 12, fontFamily);
+        
+        const hasMore = currentDialogue < scene.dialogues.length - 1 || currentScene < gameData.scenes.length - 1;
+        if (!dialogue.choices || dialogue.choices.length === 0) {
+          drawArrow(ctx, boxX, boxY, boxWidth, boxHeight, hasMore);
         }
         
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(0, 0, 60, 16);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '8px ' + fontFamily;
-        ctx.fillText('Scene ' + (currentScene + 1) + '/' + gameData.scenes.length, 4, 10);
+        drawSceneIndicator(ctx, currentScene, gameData.scenes.length, fontFamily);
       }
     }
     
@@ -1166,6 +1074,15 @@ const VNEditor = () => {
                         resize: 'vertical',
                         fontFamily: 'inherit'
                       }}
+                    />
+
+                    {/* ChoiceEditor */}
+                    <ChoiceEditor
+                      dialogue={dialogue}
+                      sceneIndex={currentSceneIndex}
+                      dialogueIndex={dIdx}
+                      updateDialogue={updateDialogue}
+                      totalScenes={project.scenes.length}
                     />
                   </div>
                 ))}
