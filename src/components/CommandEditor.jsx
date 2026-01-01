@@ -14,6 +14,17 @@ const CommandEditor = ({
 }) => {
   const [showCommandMenu, setShowCommandMenu] = useState(false);
 
+  const audioCommandStyle = {
+                padding: '6px',
+                background: '#2a2a3e',
+                color: '#fff',
+                border: '1px solid #4a5568',
+                cursor: 'pointer',
+                fontSize: '10px',
+                textAlign: 'left',
+                fontFamily: 'inherit'
+              }
+
   const addCommand = (type) => {
     const newCommand = {
       id: Date.now(),
@@ -33,6 +44,36 @@ const CommandEditor = ({
       case 'goto':
         newCommand.targetScene = Math.min(sceneIndex + 1, totalScenes - 1);
         newCommand.useTransition = true;
+        break;
+      case 'playBGM':
+        newCommand.audioFile = '';
+        newCommand.volume = 100;
+        newCommand.pitch = 100;
+        newCommand.loop = true;
+        break;
+      case 'stopBGM':
+        break;
+      case 'fadeBGM':
+        newCommand.duration = 1000;
+        newCommand.targetVolume = 0;
+        break;
+      case 'playBGS':
+        newCommand.audioFile = '';
+        newCommand.volume = 100;
+        newCommand.pitch = 100;
+        newCommand.loop = true;
+        break;
+      case 'stopBGS':
+        break;
+      case 'fadeBGS':
+        newCommand.duration = 1000;
+        newCommand.targetVolume = 0;
+        break;
+      case 'playSFX':
+        newCommand.audioFile = '';
+        newCommand.volume = 100;
+        newCommand.pitch = 100;
+        newCommand.pan = 0;
         break;
     }
 
@@ -134,6 +175,13 @@ const CommandEditor = ({
             >
               ➡️ Goto Scene
             </button>
+          <button onClick={() => addCommand('playBGM')} style={audioCommandStyle}>🎵 Play BGM</button>
+          <button onClick={() => addCommand('stopBGM')} style={audioCommandStyle}>⏹️ Stop BGM</button>
+          <button onClick={() => addCommand('fadeBGM')} style={audioCommandStyle}>🔉 Fade BGM</button>
+          <button onClick={() => addCommand('playBGS')} style={audioCommandStyle}>🌊 Play BGS</button>
+          <button onClick={() => addCommand('stopBGS')} style={audioCommandStyle}>⏹️ Stop BGS</button>
+          <button onClick={() => addCommand('fadeBGS')} style={audioCommandStyle}>🔉 Fade BGS</button>
+          <button onClick={() => addCommand('playSFX')} style={audioCommandStyle}>🔔 Play SFX</button>
           </div>
           <button
             onClick={() => setShowCommandMenu(false)}
@@ -326,6 +374,393 @@ const CommandEditor = ({
                 />
                 Use transition effect
               </label>
+            </>
+          )}
+          {/* PLAY BGM COMMAND */}
+          {command.type === 'playBGM' && (
+            <>
+              <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                BGM File:
+              </label>
+              <select 
+                value={command.audioFile || ''} 
+                onChange={(e) => updateCommand(cmdIdx, { audioFile: e.target.value })} 
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  marginBottom: '8px'
+                }}
+              >
+                <option value="">-- Select BGM --</option>
+                {audio.bgm.map(a => <option key={a.id} value={a.data}>{a.name}</option>)}
+              </select>
+              
+              <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                Volume (%):
+              </label>
+              <input 
+                type="number" 
+                min="0" 
+                max="100" 
+                value={command.volume} 
+                onChange={(e) => updateCommand(cmdIdx, { volume: parseInt(e.target.value) })} 
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  marginBottom: '8px'
+                }}
+              />
+              
+              <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                Pitch (%):
+              </label>
+              <input 
+                type="number" 
+                min="50" 
+                max="200" 
+                value={command.pitch} 
+                onChange={(e) => updateCommand(cmdIdx, { pitch: parseInt(e.target.value) })} 
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  marginBottom: '8px'
+                }}
+              />
+              
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                fontSize: '11px',
+                color: '#888'
+              }}>
+                <input 
+                  type="checkbox" 
+                  checked={command.loop} 
+                  onChange={(e) => updateCommand(cmdIdx, { loop: e.target.checked })} 
+                  style={{ marginRight: '8px' }}
+                />
+                Loop
+              </label>
+            </>
+          )}
+
+          {/* STOP BGM COMMAND */}
+          {command.type === 'stopBGM' && (
+            <div style={{
+              padding: '8px',
+              background: '#1a1a2e',
+              border: '1px solid #4a5568',
+              fontSize: '11px',
+              color: '#888',
+              textAlign: 'center'
+            }}>
+              Stops currently playing BGM
+            </div>
+          )}
+
+          {/* FADE BGM COMMAND */}
+          {command.type === 'fadeBGM' && (
+            <>
+              <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                Duration (ms):
+              </label>
+              <input 
+                type="number" 
+                min="100" 
+                max="5000" 
+                step="100" 
+                value={command.duration} 
+                onChange={(e) => updateCommand(cmdIdx, { duration: parseInt(e.target.value) })} 
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  marginBottom: '8px'
+                }}
+              />
+              
+              <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                Target Volume (%):
+              </label>
+              <input 
+                type="number" 
+                min="0" 
+                max="100" 
+                value={command.targetVolume} 
+                onChange={(e) => updateCommand(cmdIdx, { targetVolume: parseInt(e.target.value) })} 
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  marginBottom: '4px'
+                }}
+              />
+              <div style={{ fontSize: '9px', color: '#666', marginTop: '4px' }}>
+                Set to 0 to fade out and stop
+              </div>
+            </>
+          )}
+
+          {/* PLAY BGS COMMAND */}
+          {command.type === 'playBGS' && (
+            <>
+              <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                BGS File:
+              </label>
+              <select 
+                value={command.audioFile || ''} 
+                onChange={(e) => updateCommand(cmdIdx, { audioFile: e.target.value })} 
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  marginBottom: '8px'
+                }}
+              >
+                <option value="">-- Select BGS --</option>
+                {audio.bgs.map(a => <option key={a.id} value={a.data}>{a.name}</option>)}
+              </select>
+              
+              <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                Volume (%):
+              </label>
+              <input 
+                type="number" 
+                min="0" 
+                max="100" 
+                value={command.volume} 
+                onChange={(e) => updateCommand(cmdIdx, { volume: parseInt(e.target.value) })} 
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  marginBottom: '8px'
+                }}
+              />
+              
+              <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                Pitch (%):
+              </label>
+              <input 
+                type="number" 
+                min="50" 
+                max="200" 
+                value={command.pitch} 
+                onChange={(e) => updateCommand(cmdIdx, { pitch: parseInt(e.target.value) })} 
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  marginBottom: '8px'
+                }}
+              />
+              
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                fontSize: '11px',
+                color: '#888'
+              }}>
+                <input 
+                  type="checkbox" 
+                  checked={command.loop} 
+                  onChange={(e) => updateCommand(cmdIdx, { loop: e.target.checked })} 
+                  style={{ marginRight: '8px' }}
+                />
+                Loop
+              </label>
+            </>
+          )}
+
+          {/* STOP BGS COMMAND */}
+          {command.type === 'stopBGS' && (
+            <div style={{
+              padding: '8px',
+              background: '#1a1a2e',
+              border: '1px solid #4a5568',
+              fontSize: '11px',
+              color: '#888',
+              textAlign: 'center'
+            }}>
+              Stops currently playing BGS
+            </div>
+          )}
+
+          {/* FADE BGS COMMAND */}
+          {command.type === 'fadeBGS' && (
+            <>
+              <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                Duration (ms):
+              </label>
+              <input 
+                type="number" 
+                min="100" 
+                max="5000" 
+                step="100" 
+                value={command.duration} 
+                onChange={(e) => updateCommand(cmdIdx, { duration: parseInt(e.target.value) })} 
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  marginBottom: '8px'
+                }}
+              />
+              
+              <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                Target Volume (%):
+              </label>
+              <input 
+                type="number" 
+                min="0" 
+                max="100" 
+                value={command.targetVolume} 
+                onChange={(e) => updateCommand(cmdIdx, { targetVolume: parseInt(e.target.value) })} 
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  marginBottom: '4px'
+                }}
+              />
+              <div style={{ fontSize: '9px', color: '#666', marginTop: '4px' }}>
+                Set to 0 to fade out and stop
+              </div>
+            </>
+          )}
+
+          {/* PLAY SFX COMMAND */}
+          {command.type === 'playSFX' && (
+            <>
+              <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                SFX File:
+              </label>
+              <select 
+                value={command.audioFile || ''} 
+                onChange={(e) => updateCommand(cmdIdx, { audioFile: e.target.value })} 
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  marginBottom: '8px'
+                }}
+              >
+                <option value="">-- Select SFX --</option>
+                {audio.sfx.map(a => <option key={a.id} value={a.data}>{a.name}</option>)}
+              </select>
+              
+              <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                Volume (%):
+              </label>
+              <input 
+                type="number" 
+                min="0" 
+                max="100" 
+                value={command.volume} 
+                onChange={(e) => updateCommand(cmdIdx, { volume: parseInt(e.target.value) })} 
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  marginBottom: '8px'
+                }}
+              />
+              
+              <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                Pitch (%):
+              </label>
+              <input 
+                type="number" 
+                min="50" 
+                max="200" 
+                value={command.pitch} 
+                onChange={(e) => updateCommand(cmdIdx, { pitch: parseInt(e.target.value) })} 
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  marginBottom: '8px'
+                }}
+              />
+              
+              <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                Pan (-100 to 100):
+              </label>
+              <input 
+                type="number" 
+                min="-100" 
+                max="100" 
+                value={command.pan} 
+                onChange={(e) => updateCommand(cmdIdx, { pan: parseInt(e.target.value) })} 
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  background: '#1a1a2e',
+                  border: '1px solid #4a5568',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  marginBottom: '4px'
+                }}
+              />
+              <div style={{ fontSize: '9px', color: '#666', marginTop: '4px' }}>
+                -100 = Left, 0 = Center, 100 = Right
+              </div>
             </>
           )}
         </div>

@@ -10,10 +10,24 @@ const VNEditor = () => {
     title: "My Visual Novel",
     resolution: [256, 192],
     flags: [],
-    settings: { scale: 2, fontFamily: 'dogica, monospace', customFont: null, customMsgBox: null, customNameBox: null, customTransition: null, transitionDuration: 800 },
+    settings: { scale: 2, fontFamily: 'dogica, monospace', customFont: null, customMsgBox: null, customNameBox: null, customTransition: null, transitionDuration: 800,     masterVolumeBGM: 1.0,
+    masterVolumeBGS: 1.0,
+    masterVolumeSFX: 1.0,
+    systemSFX: {
+      cursor: '/audio/sfx/cursor.ogg',
+      confirm: '/audio/sfx/confirm.ogg',
+      buzzer: '/audio/sfx/buzzer.ogg',
+      lettersound: '/audio/sfx/lettersound.ogg'
+    },
+    letterSoundEnabled: true },
     scenes: [{ id: 1, name: "Scene 1", background: "#2d5a3d", character: null, characterImage: null, characterPosition: "center", backgroundImage: null, commands: [{ id: Date.now(), type: "dialogue", speaker: "Narrator", text: "Welcome to the Visual Novel Editor!", choices: [] }] }],
     characters: [],
-    backgrounds: []
+    backgrounds: [],
+    audio: {
+      bgm: [],
+      bgs: [],
+      sfx: []
+    }
   });
 
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0);
@@ -265,6 +279,55 @@ const VNEditor = () => {
   const deleteCharacter = (id) => setProject({ ...project, characters: project.characters.filter(c => c.id !== id) });
   const deleteBackground = (id) => setProject({ ...project, backgrounds: project.backgrounds.filter(b => b.id !== id) });
 
+  const uploadAudio = (type, event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setProject({
+        ...project,
+        audio: {
+          ...project.audio,
+          [type]: [...project.audio[type], {
+            id: Date.now(),
+            name: file.name.replace(/\.[^/.]+$/, ""),
+            data: e.target.result
+          }]
+        }
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const deleteAudio = (type, id) => {
+    setProject({
+      ...project,
+      audio: {
+        ...project.audio,
+        [type]: project.audio[type].filter(a => a.id !== id)
+      }
+    });
+  };
+
+  const uploadSystemSFX = (type, event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setProject({
+        ...project,
+        settings: {
+          ...project.settings,
+          systemSFX: {
+            ...project.settings.systemSFX,
+            [type]: e.target.result
+          }
+        }
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const uploadCustomMsgBox = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => setProject({ ...project, settings: { ...project.settings, customMsgBox: ev.target.result } }); reader.readAsDataURL(file); };
   const uploadCustomNameBox = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => setProject({ ...project, settings: { ...project.settings, customNameBox: ev.target.result } }); reader.readAsDataURL(file); };
   const uploadCustomTransition = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => setProject({ ...project, settings: { ...project.settings, customTransition: ev.target.result } }); reader.readAsDataURL(file); };
@@ -435,6 +498,52 @@ const VNEditor = () => {
                 )}
               </div>
             </div>
+
+            <div style={{ marginTop: '24px' }}>
+              <h3 style={{ fontSize: '14px', color: '#f39c12', marginBottom: '12px' }}>Audio Files</h3>
+              
+              {/* BGM */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#3498db' }}>🎵 BGM</span>
+                  <label style={{ padding: '4px 8px', background: '#27ae60', color: '#fff', cursor: 'pointer', fontSize: '10px', fontFamily: 'inherit' }}>+ Upload<input type="file" accept=".ogg" onChange={(e) => uploadAudio('bgm', e)} style={{ display: 'none' }} /></label>
+                </div>
+                {project.audio.bgm.map(a => (
+                  <div key={a.id} style={{ padding: '6px', background: '#2a2a3e', border: '1px solid #4a5568', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '10px' }}>{a.name}</span>
+                    <button onClick={() => deleteAudio('bgm', a.id)} style={{ padding: '2px 6px', background: '#e74c3c', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '9px', fontFamily: 'inherit' }}>×</button>
+                  </div>
+                ))}
+              </div>
+
+              {/* BGS */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#3498db' }}>🎵 BGS</span>
+                  <label style={{ padding: '4px 8px', background: '#27ae60', color: '#fff', cursor: 'pointer', fontSize: '10px', fontFamily: 'inherit' }}>+ Upload<input type="file" accept=".ogg" onChange={(e) => uploadAudio('bgs', e)} style={{ display: 'none' }} /></label>
+                </div>
+                {project.audio.bgs.map(a => (
+                  <div key={a.id} style={{ padding: '6px', background: '#2a2a3e', border: '1px solid #4a5568', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '10px' }}>{a.name}</span>
+                    <button onClick={() => deleteAudio('bgs', a.id)} style={{ padding: '2px 6px', background: '#e74c3c', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '9px', fontFamily: 'inherit' }}>×</button>
+                  </div>
+                ))}
+              </div>
+
+              {/* SFX */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#3498db' }}>🎵 SFX</span>
+                  <label style={{ padding: '4px 8px', background: '#27ae60', color: '#fff', cursor: 'pointer', fontSize: '10px', fontFamily: 'inherit' }}>+ Upload<input type="file" accept=".ogg" onChange={(e) => uploadAudio('sfx', e)} style={{ display: 'none' }} /></label>
+                </div>
+                {project.audio.sfx.map(a => (
+                  <div key={a.id} style={{ padding: '6px', background: '#2a2a3e', border: '1px solid #4a5568', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '10px' }}>{a.name}</span>
+                    <button onClick={() => deleteAudio('sfx', a.id)} style={{ padding: '2px 6px', background: '#e74c3c', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '9px', fontFamily: 'inherit' }}>×</button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -446,6 +555,296 @@ const VNEditor = () => {
             <label style={{ fontSize: '11px', marginBottom: '4px', display: 'block' }}>Transition Duration ({project.settings.transitionDuration}ms):</label>
             <input type="range" min="200" max="2000" step="100" value={project.settings.transitionDuration} onChange={(e) => setProject({ ...project, settings: { ...project.settings, transitionDuration: parseInt(e.target.value) } })} style={{ width: '100%', marginBottom: '16px' }} />
             <FlagsManager flags={project.flags} updateFlags={(flags) => setProject({ ...project, flags })} />
+            {/* MASTER VOLUME */}
+            <div style={{ 
+              padding: '12px', 
+              background: '#2a2a3e', 
+              border: '1px solid #4a5568', 
+              marginBottom: '16px' 
+            }}>
+              <h4 style={{ 
+                fontSize: '12px', 
+                marginBottom: '12px', 
+                color: '#f39c12' 
+              }}>
+                Master Volume
+              </h4>
+              
+              <label style={{ 
+                display: 'block', 
+                fontSize: '11px', 
+                marginBottom: '4px',
+                color: '#888'
+              }}>
+                BGM: {Math.round(project.settings.masterVolumeBGM * 100)}%
+              </label>
+              <input 
+                type="range" 
+                min="0" 
+                max="100" 
+                value={project.settings.masterVolumeBGM * 100} 
+                onChange={(e) => setProject({ 
+                  ...project, 
+                  settings: { 
+                    ...project.settings, 
+                    masterVolumeBGM: parseInt(e.target.value) / 100 
+                  } 
+                })} 
+                style={{ 
+                  width: '100%', 
+                  marginBottom: '12px' 
+                }} 
+              />
+              
+              <label style={{ 
+                display: 'block', 
+                fontSize: '11px', 
+                marginBottom: '4px',
+                color: '#888'
+              }}>
+                BGS: {Math.round(project.settings.masterVolumeBGS * 100)}%
+              </label>
+              <input 
+                type="range" 
+                min="0" 
+                max="100" 
+                value={project.settings.masterVolumeBGS * 100} 
+                onChange={(e) => setProject({ 
+                  ...project, 
+                  settings: { 
+                    ...project.settings, 
+                    masterVolumeBGS: parseInt(e.target.value) / 100 
+                  } 
+                })} 
+                style={{ 
+                  width: '100%', 
+                  marginBottom: '12px' 
+                }} 
+              />
+              
+              <label style={{ 
+                display: 'block', 
+                fontSize: '11px', 
+                marginBottom: '4px',
+                color: '#888'
+              }}>
+                SFX: {Math.round(project.settings.masterVolumeSFX * 100)}%
+              </label>
+              <input 
+                type="range" 
+                min="0" 
+                max="100" 
+                value={project.settings.masterVolumeSFX * 100} 
+                onChange={(e) => setProject({ 
+                  ...project, 
+                  settings: { 
+                    ...project.settings, 
+                    masterVolumeSFX: parseInt(e.target.value) / 100 
+                  } 
+                })} 
+                style={{ 
+                  width: '100%' 
+                }} 
+              />
+            </div>
+
+            {/* SYSTEM SFX */}
+            <div style={{ 
+              padding: '12px', 
+              background: '#2a2a3e', 
+              border: '1px solid #4a5568', 
+              marginBottom: '16px' 
+            }}>
+              <h4 style={{ 
+                fontSize: '12px', 
+                marginBottom: '12px', 
+                color: '#f39c12' 
+              }}>
+                System SFX
+              </h4>
+              
+              {/* Cursor */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ 
+                  fontSize: '10px', 
+                  display: 'block', 
+                  marginBottom: '4px', 
+                  textTransform: 'capitalize',
+                  color: '#888'
+                }}>
+                  Cursor:
+                </label>
+                <select 
+                  value={project.settings.systemSFX.cursor || '/audio/sfx/cursor.ogg'} 
+                  onChange={(e) => setProject({ 
+                    ...project, 
+                    settings: { 
+                      ...project.settings, 
+                      systemSFX: { 
+                        ...project.settings.systemSFX, 
+                        cursor: e.target.value 
+                      } 
+                    } 
+                  })} 
+                  style={{
+                    width: '100%',
+                    padding: '6px',
+                    background: '#1a1a2e',
+                    border: '1px solid #4a5568',
+                    color: '#fff',
+                    fontSize: '11px',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  <option value="/audio/sfx/cursor.ogg">Default (cursor.ogg)</option>
+                  {project.audio.sfx.map(a => (
+                    <option key={a.id} value={a.data}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Confirm */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ 
+                  fontSize: '10px', 
+                  display: 'block', 
+                  marginBottom: '4px', 
+                  textTransform: 'capitalize',
+                  color: '#888'
+                }}>
+                  Confirm:
+                </label>
+                <select 
+                  value={project.settings.systemSFX.confirm || '/audio/sfx/confirm.ogg'} 
+                  onChange={(e) => setProject({ 
+                    ...project, 
+                    settings: { 
+                      ...project.settings, 
+                      systemSFX: { 
+                        ...project.settings.systemSFX, 
+                        confirm: e.target.value 
+                      } 
+                    } 
+                  })} 
+                  style={{
+                    width: '100%',
+                    padding: '6px',
+                    background: '#1a1a2e',
+                    border: '1px solid #4a5568',
+                    color: '#fff',
+                    fontSize: '11px',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  <option value="/audio/sfx/confirm.ogg">Default (confirm.ogg)</option>
+                  {project.audio.sfx.map(a => (
+                    <option key={a.id} value={a.data}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Buzzer */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ 
+                  fontSize: '10px', 
+                  display: 'block', 
+                  marginBottom: '4px', 
+                  textTransform: 'capitalize',
+                  color: '#888'
+                }}>
+                  Buzzer:
+                </label>
+                <select 
+                  value={project.settings.systemSFX.buzzer || '/audio/sfx/buzzer.ogg'} 
+                  onChange={(e) => setProject({ 
+                    ...project, 
+                    settings: { 
+                      ...project.settings, 
+                      systemSFX: { 
+                        ...project.settings.systemSFX, 
+                        buzzer: e.target.value 
+                      } 
+                    } 
+                  })} 
+                  style={{
+                    width: '100%',
+                    padding: '6px',
+                    background: '#1a1a2e',
+                    border: '1px solid #4a5568',
+                    color: '#fff',
+                    fontSize: '11px',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  <option value="/audio/sfx/buzzer.ogg">Default (buzzer.ogg)</option>
+                  {project.audio.sfx.map(a => (
+                    <option key={a.id} value={a.data}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Letter Sound */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ 
+                  fontSize: '10px', 
+                  display: 'block', 
+                  marginBottom: '4px', 
+                  textTransform: 'capitalize',
+                  color: '#888'
+                }}>
+                  Letter Sound:
+                </label>
+                <select 
+                  value={project.settings.systemSFX.lettersound || '/audio/sfx/lettersound.ogg'} 
+                  onChange={(e) => setProject({ 
+                    ...project, 
+                    settings: { 
+                      ...project.settings, 
+                      systemSFX: { 
+                        ...project.settings.systemSFX, 
+                        lettersound: e.target.value 
+                      } 
+                    } 
+                  })} 
+                  style={{
+                    width: '100%',
+                    padding: '6px',
+                    background: '#1a1a2e',
+                    border: '1px solid #4a5568',
+                    color: '#fff',
+                    fontSize: '11px',
+                    fontFamily: 'inherit',
+                    marginBottom: '8px'
+                  }}
+                >
+                  <option value="/audio/sfx/lettersound.ogg">Default (lettersound.ogg)</option>
+                  {project.audio.sfx.map(a => (
+                    <option key={a.id} value={a.data}>{a.name}</option>
+                  ))}
+                </select>
+                
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  fontSize: '11px',
+                  color: '#888'
+                }}>
+                  <input 
+                    type="checkbox" 
+                    checked={project.settings.letterSoundEnabled} 
+                    onChange={(e) => setProject({ 
+                      ...project, 
+                      settings: { 
+                        ...project.settings, 
+                        letterSoundEnabled: e.target.checked 
+                      } 
+                    })} 
+                    style={{ marginRight: '8px' }}
+                  />
+                  Enable Letter Sound (Typewriter)
+                </label>
+              </div>
+            </div>
           </div>
         )}
 
