@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ChoiceEditor from './ChoiceEditor';
 
-const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flags, audio, onJumpToCommand }) => {
+const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flags, audio, characters, backgrounds, onJumpToCommand }) => {
   const [showCommandMenu, setShowCommandMenu] = useState(false);
   const [collapsedCommands, setCollapsedCommands] = useState({});
 
@@ -13,7 +13,11 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
     'Dialogues & Logic': [
       { type: 'dialogue', icon: '💬', label: 'Add Dialogue' },
       { type: 'setFlag', icon: '🚩', label: 'Set Flag' },
-      { type: 'goto', icon: '➡️', label: 'Goto Scene' }
+      { type: 'goto', icon: '➡️', label: 'Goto Scene' },
+      { type: 'showCharacter', icon: '👤', label: 'Show/Change Character' },
+      { type: 'hideCharacter', icon: '👻', label: 'Hide Character' },
+      { type: 'showBackground', icon: '🖼️', label: 'Show/Change Background' },
+      { type: 'hideBackground', icon: '🚫', label: 'Hide Background' }
     ],
     'Audio Manager': [
       { type: 'playBGM', icon: '🎵', label: 'Play BGM' },
@@ -64,7 +68,31 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
         newCommand.pitch = 100;
         newCommand.pan = 0;
         break;
-    }
+      case 'showCharacter':
+        newCommand.charIndex = 0;
+        newCommand.sprite = '';
+        newCommand.position = 'center';
+        newCommand.animated = false;
+        newCommand.frames = 1;
+        newCommand.frameSpeed = 100;
+        newCommand.faded = false;
+        newCommand.fadeDuration = 500;
+        break;
+      case 'hideCharacter':
+        newCommand.charIndex = 0;
+        newCommand.faded = false;
+        newCommand.fadeDuration = 500;
+        break;
+      case 'showBackground':
+        newCommand.backgroundImage = '';
+        newCommand.faded = false;
+        newCommand.fadeDuration = 500;
+        break;
+      case 'hideBackground':
+        newCommand.faded = false;
+        newCommand.fadeDuration = 500;
+        break;
+          }
 
     updateCommands([...commands, newCommand]);
     setShowCommandMenu(false);
@@ -299,6 +327,114 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
                   <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Pan (-100 to 100):</label>
                   <input type="number" min="-100" max="100" value={command.pan} onChange={(e) => updateCommand(cmdIdx, { pan: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '4px' }} />
                   <div style={{ fontSize: '9px', color: '#666', marginTop: '4px' }}>-100 = Left, 0 = Center, 100 = Right</div>
+                </>
+              )}
+
+              {/* SHOW CHARACTER */}
+              {command.type === 'showCharacter' && (
+                <>
+                  <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Character Slot (0-2):</label>
+                  <input type="number" min="0" max="2" value={command.charIndex} onChange={(e) => updateCommand(cmdIdx, { charIndex: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '8px' }} />
+                  
+                  <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Sprite:</label>
+                  <select value={command.sprite || ''} onChange={(e) => updateCommand(cmdIdx, { sprite: e.target.value })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '8px' }}>
+                    <option value="">-- Select Sprite --</option>
+                    {characters.map(char => <option key={char.id} value={char.data}>{char.name}</option>)}
+                  </select>
+                  
+                  <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Position:</label>
+                  <select value={command.position} onChange={(e) => updateCommand(cmdIdx, { position: e.target.value })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '8px' }}>
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                  </select>
+                  
+                  <label style={{ display: 'flex', alignItems: 'center', fontSize: '11px', color: '#888', marginBottom: '8px' }}>
+                    <input type="checkbox" checked={command.animated} onChange={(e) => updateCommand(cmdIdx, { animated: e.target.checked })} style={{ marginRight: '8px' }} />
+                    Animated Spritesheet
+                  </label>
+                  
+                  {command.animated && (
+                    <>
+                      <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Frames:</label>
+                      <input type="number" min="1" max="20" value={command.frames} onChange={(e) => updateCommand(cmdIdx, { frames: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '8px' }} />
+                      
+                      <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Frame Speed (ms):</label>
+                      <input type="number" min="50" max="1000" step="50" value={command.frameSpeed} onChange={(e) => updateCommand(cmdIdx, { frameSpeed: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '8px' }} />
+                    </>
+                  )}
+                  
+                  <label style={{ display: 'flex', alignItems: 'center', fontSize: '11px', color: '#888', marginBottom: '8px' }}>
+                    <input type="checkbox" checked={command.faded} onChange={(e) => updateCommand(cmdIdx, { faded: e.target.checked })} style={{ marginRight: '8px' }} />
+                    Fade In
+                  </label>
+                  
+                  {command.faded && (
+                    <>
+                      <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Fade Duration (ms):</label>
+                      <input type="number" min="100" max="2000" step="100" value={command.fadeDuration} onChange={(e) => updateCommand(cmdIdx, { fadeDuration: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit' }} />
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* HIDE CHARACTER */}
+              {command.type === 'hideCharacter' && (
+                <>
+                  <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Character Slot (0-2):</label>
+                  <input type="number" min="0" max="2" value={command.charIndex} onChange={(e) => updateCommand(cmdIdx, { charIndex: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '8px' }} />
+                  
+                  <label style={{ display: 'flex', alignItems: 'center', fontSize: '11px', color: '#888', marginBottom: '8px' }}>
+                    <input type="checkbox" checked={command.faded} onChange={(e) => updateCommand(cmdIdx, { faded: e.target.checked })} style={{ marginRight: '8px' }} />
+                    Fade Out
+                  </label>
+                  
+                  {command.faded && (
+                    <>
+                      <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Fade Duration (ms):</label>
+                      <input type="number" min="100" max="2000" step="100" value={command.fadeDuration} onChange={(e) => updateCommand(cmdIdx, { fadeDuration: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit' }} />
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* SHOW BACKGROUND */}
+              {command.type === 'showBackground' && (
+                <>
+                  <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Background:</label>
+                  <select value={command.backgroundImage || ''} onChange={(e) => updateCommand(cmdIdx, { backgroundImage: e.target.value })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '8px' }}>
+                    <option value="">-- Select Background --</option>
+                    {backgrounds.map(bg => <option key={bg.id} value={bg.data}>{bg.name}</option>)}
+                  </select>
+                  
+                  <label style={{ display: 'flex', alignItems: 'center', fontSize: '11px', color: '#888', marginBottom: '8px' }}>
+                    <input type="checkbox" checked={command.faded} onChange={(e) => updateCommand(cmdIdx, { faded: e.target.checked })} style={{ marginRight: '8px' }} />
+                    Crossfade
+                  </label>
+                  
+                  {command.faded && (
+                    <>
+                      <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Fade Duration (ms):</label>
+                      <input type="number" min="100" max="2000" step="100" value={command.fadeDuration} onChange={(e) => updateCommand(cmdIdx, { fadeDuration: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit' }} />
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* HIDE BACKGROUND */}
+              {command.type === 'hideBackground' && (
+                <>
+                  <label style={{ display: 'flex', alignItems: 'center', fontSize: '11px', color: '#888', marginBottom: '8px' }}>
+                    <input type="checkbox" checked={command.faded} onChange={(e) => updateCommand(cmdIdx, { faded: e.target.checked })} style={{ marginRight: '8px' }} />
+                    Fade Out
+                  </label>
+                  
+                  {command.faded && (
+                    <>
+                      <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Fade Duration (ms):</label>
+                      <input type="number" min="100" max="2000" step="100" value={command.fadeDuration} onChange={(e) => updateCommand(cmdIdx, { fadeDuration: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit' }} />
+                    </>
+                  )}
                 </>
               )}
             </>
