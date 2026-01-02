@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ChoiceEditor from './ChoiceEditor';
 
-const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flags, audio }) => {
+const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flags, audio, onJumpToCommand }) => {
   const [showCommandMenu, setShowCommandMenu] = useState(false);
   const [collapsedCommands, setCollapsedCommands] = useState({});
 
@@ -154,8 +154,11 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
       {commands.map((command, cmdIdx) => (
         <div key={command.id} style={{ padding: '8px', background: '#2a2a3e', border: '1px solid #4a5568', marginBottom: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: collapsedCommands[cmdIdx] ? '0' : '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-              <button onClick={() => toggleCollapse(cmdIdx)} style={{ padding: '4px 8px', background: '#1a1a2e', color: '#fff', border: '1px solid #4a5568', cursor: 'pointer', fontSize: '10px', fontFamily: 'inherit' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, cursor: 'pointer' }} onClick={() => onJumpToCommand && onJumpToCommand(cmdIdx)}>
+              <button onClick={(e) => {
+                e.stopPropagation()
+                toggleCollapse(cmdIdx)
+              }} style={{ padding: '4px 8px', background: '#1a1a2e', color: '#fff', border: '1px solid #4a5568', cursor: 'pointer', fontSize: '10px', fontFamily: 'inherit' }}>
                 {collapsedCommands[cmdIdx] ? '▶' : '▼'}
               </button>
               <span style={{ fontSize: '11px', color: '#f39c12' }}>

@@ -462,7 +462,7 @@ const VNEditor = () => {
                 Show Character Placeholder
               </label>
             </div>
-            <CommandEditor commands={scene.commands} sceneIndex={currentSceneIndex} updateCommands={(cmds) => updateScene(currentSceneIndex, { commands: cmds })} totalScenes={project.scenes.length} flags={project.flags} audio={project.audio}/>
+            <CommandEditor commands={scene.commands} sceneIndex={currentSceneIndex} updateCommands={(cmds) => updateScene(currentSceneIndex, { commands: cmds })} totalScenes={project.scenes.length} flags={project.flags} audio={project.audio} onJumpToCommand={(index) => setCurrentCommandIndex(index)}/>
           </div>
         )}
 
