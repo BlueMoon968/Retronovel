@@ -10,9 +10,12 @@ const CommandEditor = ({
   sceneIndex, 
   updateCommands, 
   totalScenes, 
-  flags 
+  flags,
+  audio
 }) => {
   const [showCommandMenu, setShowCommandMenu] = useState(false);
+
+  if (!audio) {audio = {bgm: [], bgs: [], sfx: [] }}
 
   const audioCommandStyle = {
                 padding: '6px',

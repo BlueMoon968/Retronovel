@@ -4,6 +4,7 @@ import FlagsManager from './components/FlagsManager';
 import { drawNinePatch, drawNameBox, drawDialogueText, drawChoices, drawArrow, drawSceneIndicator } from './engine/renderEngine';
 import { performGradientWipe, captureScene } from './engine/transitionEngine';
 import { generateGameHTML } from './engine/exportEngine';
+import { audioManager } from './engine/audioEngine';
 
 const VNEditor = () => {
   const [project, setProject] = useState({
@@ -41,6 +42,7 @@ const VNEditor = () => {
   const msgBoxImageRef = useRef(null);
   const nameBoxImageRef = useRef(null);
   const transitionImageRef = useRef(null);
+  const lastExecutedCommand = useRef(null);
 
   useEffect(() => {
     const loadImages = async () => {
@@ -84,6 +86,31 @@ const VNEditor = () => {
     loadTransition();
   }, [project.settings.customTransition]);
 
+  // Auto-execute non-dialogue commands when playing
+  useEffect(() => {
+    if (!isPlaying) return;
+    
+    const scene = project.scenes[currentSceneIndex];
+    const command = scene?.commands[currentCommandIndex];
+    
+    if (command && command.type !== 'dialogue') {
+      const commandKey = `${currentSceneIndex}-${currentCommandIndex}`;
+      
+      // Execute only if not already executed
+      if (lastExecutedCommand.current !== commandKey) {
+        lastExecutedCommand.current = commandKey;
+        executeCommand(command);
+      }
+    }
+  }, [isPlaying, currentSceneIndex, currentCommandIndex]);
+
+  // Reset executed command tracker when stopping or changing scenes
+  useEffect(() => {
+    if (!isPlaying) {
+      lastExecutedCommand.current = null;
+    }
+  }, [isPlaying]);
+
   useEffect(() => {
     document.fonts.ready.then(() => setProject(p => ({...p})));
   }, []);
@@ -94,6 +121,33 @@ const VNEditor = () => {
       advanceCommand();
     } else if (command.type === 'goto') {
       command.useTransition ? changeSceneWithTransition(command.targetScene, 0) : (setCurrentSceneIndex(command.targetScene), setCurrentCommandIndex(0));
+    } else if (command.type === 'playBGM') {
+      if (command.audioFile) {
+        audioManager.playBGM(command.audioFile, command.volume / 100, command.pitch / 100, command.loop);
+      }
+      advanceCommand();
+    } else if (command.type === 'stopBGM') {
+      audioManager.stopBGM();
+      advanceCommand();
+    } else if (command.type === 'fadeBGM') {
+      audioManager.fadeBGM(command.duration, command.targetVolume / 100);
+      advanceCommand();
+    } else if (command.type === 'playBGS') {
+      if (command.audioFile) {
+        audioManager.playBGS(command.audioFile, command.volume / 100, command.pitch / 100, command.loop);
+      }
+      advanceCommand();
+    } else if (command.type === 'stopBGS') {
+      audioManager.stopBGS();
+      advanceCommand();
+    } else if (command.type === 'fadeBGS') {
+      audioManager.fadeBGS(command.duration, command.targetVolume / 100);
+      advanceCommand();
+    } else if (command.type === 'playSFX') {
+      if (command.audioFile) {
+        audioManager.playSFX(command.audioFile, command.volume / 100, command.pitch / 100, command.pan / 100);
+      }
+      advanceCommand();
     }
   };
 
@@ -102,7 +156,6 @@ const VNEditor = () => {
     if (currentCommandIndex < scene.commands.length - 1) {
       const nextIndex = currentCommandIndex + 1;
       setCurrentCommandIndex(nextIndex);
-      if (scene.commands[nextIndex].type !== 'dialogue') executeCommand(scene.commands[nextIndex]);
     } else if (currentSceneIndex < project.scenes.length - 1) {
       changeSceneWithTransition(currentSceneIndex + 1, 0);
     }
@@ -196,6 +249,7 @@ const VNEditor = () => {
       ctx.fillRect(0, 0, width, height);
       drawCharacter();
     }
+    
     function drawCharacter() {
       if (scene.characterImage) {
         const img = new Image();
@@ -401,7 +455,7 @@ const VNEditor = () => {
                 Show Character Placeholder
               </label>
             </div>
-            <CommandEditor commands={scene.commands} sceneIndex={currentSceneIndex} updateCommands={(cmds) => updateScene(currentSceneIndex, { commands: cmds })} totalScenes={project.scenes.length} flags={project.flags} />
+            <CommandEditor commands={scene.commands} sceneIndex={currentSceneIndex} updateCommands={(cmds) => updateScene(currentSceneIndex, { commands: cmds })} totalScenes={project.scenes.length} flags={project.flags} audio={project.audio}/>
           </div>
         )}
 
