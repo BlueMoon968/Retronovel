@@ -444,35 +444,18 @@ const VNEditor = () => {
     });
   };
 
-
-  // Main rendering useEffect
+  // Main rendering useEffect - EDITOR + PLAY mode
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
-    // CRITICAL
-    if (!isPlaying) {
-      const ctx = canvas.getContext('2d');
-      const [width, height] = project.resolution;
-      ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, width, height);
-      
-      const scene = project.scenes[currentSceneIndex];
-      if (scene) {
-
-        ctx.imageSmoothingEnabled = false;
-        drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
-      }
-      return;
-    }
-
     const ctx = canvas.getContext('2d', { alpha: false });
     const [width, height] = project.resolution;
     
     const scene = project.scenes[currentSceneIndex];
     if (!scene) return;
 
+    // Initialize characters if missing
     if (!scene.characters) {
       scene.characters = [
         { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
@@ -495,20 +478,59 @@ const VNEditor = () => {
     };
 
     const render = async () => {
-
+      // Clear canvas
       ctx.clearRect(0, 0, width, height);
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, width, height);
-
+      
+      // Disable smoothing
       ctx.imageSmoothingEnabled = false;
       ctx.mozImageSmoothingEnabled = false;
       ctx.webkitImageSmoothingEnabled = false;
       ctx.msImageSmoothingEnabled = false;
       ctx.globalAlpha = 1;
-      
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, width, height);
 
+      // === EDITOR MODE PREVIEW ===
+      if (!isPlaying) {
+        // Draw background
+        if (scene.backgroundImage) {
+          const bgImg = await loadImage(scene.backgroundImage);
+          if (bgImg) {
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(bgImg, 0, 0, width, height);
+          }
+        } else {
+          ctx.fillStyle = scene.background;
+          ctx.fillRect(0, 0, width, height);
+        }
+        
+        // Draw ONLY initial character (slot 0) - no animation
+        if (scene.characters[0] && scene.characters[0].sprite) {
+          const charImg = await loadImage(scene.characters[0].sprite);
+          if (charImg) {
+            let sourceWidth = charImg.width;
+            if (scene.characters[0].animated && scene.characters[0].frames > 1) {
+              sourceWidth = charImg.width / scene.characters[0].frames;
+            }
+            
+            let charX = Math.floor((width - sourceWidth) / 2);
+            if (scene.characters[0].position === 'left') charX = 0;
+            if (scene.characters[0].position === 'right') charX = width - sourceWidth;
+            
+            const charY = Math.floor(height - charImg.height);
+            
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(charImg, 0, 0, sourceWidth, charImg.height, charX, charY, sourceWidth, charImg.height);
+          }
+        }
+        
+        // Draw scene indicator only
+        drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
+        return;
+      }
+
+      // === PLAY MODE - Full rendering ===
+      
       // Background
       if (scene.backgroundVisible !== false) {
         if (scene.backgroundImage) {
@@ -527,7 +549,7 @@ const VNEditor = () => {
         }
       }
 
-      // Characters (USA LE COORDINATE CHE HAI GIA' NEL TUO CODICE)
+      // Characters with animation
       const charImages = await Promise.all(
         scene.characters.map(char => 
           (char.visible && char.sprite) ? loadImage(char.sprite) : Promise.resolve(null)
@@ -546,7 +568,6 @@ const VNEditor = () => {
           sourceX = currentFrames.current[idx] * sourceWidth;
         }
         
-        // USA LE TUE COORDINATE DA GITHUB (non modifico)
         let charX = Math.floor((width - sourceWidth) / 2);
         if (char.position === 'left') charX = 0;
         if (char.position === 'right') charX = width - sourceWidth;
@@ -563,7 +584,7 @@ const VNEditor = () => {
         ctx.globalAlpha = 1;
       });
 
-      // UI
+      // UI - Dialogue box
       const command = scene.commands[currentCommandIndex];
       if (!command || command.type !== 'dialogue') {
         drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
