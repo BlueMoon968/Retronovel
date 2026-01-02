@@ -60,6 +60,7 @@ const VNEditor = () => {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [choicePositions, setChoicePositions] = useState(null);
   const [backgroundOpacity, setBackgroundOpacity] = useState(1);
+  const [animationTick, setAnimationTick] = useState(0);
   
   const canvasRef = useRef(null);
   const msgBoxImageRef = useRef(null);
@@ -135,7 +136,20 @@ const VNEditor = () => {
       lastExecutedCommand.current = null;
       audioManager.stopAll();
       
-      // Ripristina stato iniziale della scena
+      // Force canvas clear
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        const [width, height] = project.resolution;
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, width, height);
+        
+        // Ridisegna scene indicator
+        ctx.imageSmoothingEnabled = false;
+        drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
+      }
+      
       if (initialSceneState.current) {
         updateScene(currentSceneIndex, {
           characters: initialSceneState.current.characters,
@@ -147,8 +161,8 @@ const VNEditor = () => {
       
       setBackgroundOpacity(1);
       currentFrames.current = [0, 0, 0];
+      setAnimationTick(0); // RESET ANCHE QUESTO
       
-      // Cancel animation loop
       if (animationFrameId.current) {
         cancelAnimationFrame(animationFrameId.current);
         animationFrameId.current = null;
@@ -161,10 +175,13 @@ const VNEditor = () => {
     if (!isPlaying) return;
     
     const scene = project.scenes[currentSceneIndex];
+    if (!scene) return;
+    
     const lastFrameTime = {};
-    let rerenderNeeded = false;
     
     const animate = (timestamp) => {
+      let hasUpdate = false;
+      
       scene.characters.forEach((char, idx) => {
         if (char.visible && char.animated && char.frames > 1) {
           if (!lastFrameTime[idx]) lastFrameTime[idx] = timestamp;
@@ -173,15 +190,13 @@ const VNEditor = () => {
           if (elapsed >= char.frameSpeed) {
             currentFrames.current[idx] = (currentFrames.current[idx] + 1) % char.frames;
             lastFrameTime[idx] = timestamp;
-            rerenderNeeded = true;
+            hasUpdate = true;
           }
         }
       });
       
-      // Force component update quando serve
-      if (rerenderNeeded) {
-        setBackgroundOpacity(prev => prev); // Trick per triggerare render
-        rerenderNeeded = false;
+      if (hasUpdate) {
+        setAnimationTick(prev => prev + 1);
       }
       
       animationFrameId.current = requestAnimationFrame(animate);
@@ -435,6 +450,23 @@ const VNEditor = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
+    // CRITICAL
+    if (!isPlaying) {
+      const ctx = canvas.getContext('2d');
+      const [width, height] = project.resolution;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, width, height);
+      
+      const scene = project.scenes[currentSceneIndex];
+      if (scene) {
+
+        ctx.imageSmoothingEnabled = false;
+        drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
+      }
+      return;
+    }
+
     const ctx = canvas.getContext('2d', { alpha: false });
     const [width, height] = project.resolution;
     
@@ -463,10 +495,16 @@ const VNEditor = () => {
     };
 
     const render = async () => {
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, width, height);
+
       ctx.imageSmoothingEnabled = false;
       ctx.mozImageSmoothingEnabled = false;
       ctx.webkitImageSmoothingEnabled = false;
       ctx.msImageSmoothingEnabled = false;
+      ctx.globalAlpha = 1;
       
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, width, height);
@@ -559,7 +597,7 @@ const VNEditor = () => {
     };
 
     render();
-  }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity, isPlaying]);
+  }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity, isPlaying, animationTick]);
 
 
   const handleCanvasClick = (event) => {
