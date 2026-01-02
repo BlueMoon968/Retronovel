@@ -304,11 +304,11 @@ const VNEditor = () => {
       assetsToLoad++;
       const charImg = new Image();
       charImg.onload = () => {
-        const charWidth = 80, charHeight = 120;
+        const charWidth = charImg.width, charHeight = charImg.height;
         let charX = (project.resolution[0] - charWidth) / 2;
-        if (scene.characterPosition === 'left') charX = 20;
-        if (scene.characterPosition === 'right') charX = project.resolution[0] - charWidth - 20;
-        newCtx.drawImage(charImg, charX, project.resolution[1] - charHeight - 10, charWidth, charHeight);
+        if (scene.characterPosition === 'left') charX = 0;
+        if (scene.characterPosition === 'right') charX = project.resolution[0] - charWidth;
+        newCtx.drawImage(charImg, charX, project.resolution[1] - charHeight, charWidth, charHeight);
         checkComplete();
       };
       charImg.onerror = () => checkComplete();
@@ -317,9 +317,9 @@ const VNEditor = () => {
       newCtx.fillStyle = '#4a4a4a';
       const charWidth = 64, charHeight = 96;
       let charX = (project.resolution[0] - charWidth) / 2;
-      if (scene.characterPosition === 'left') charX = 20;
-      if (scene.characterPosition === 'right') charX = project.resolution[0] - charWidth - 20;
-      newCtx.fillRect(charX, project.resolution[1] - charHeight - 50, charWidth, charHeight);
+      if (scene.characterPosition === 'left') charX = 0;
+      if (scene.characterPosition === 'right') charX = project.resolution[0] - charWidth;
+      newCtx.fillRect(charX, project.resolution[1] - charHeight, charWidth, charHeight);
     }
     if (assetsToLoad === 0) startTransition(oldScene, newSceneCanvas, newSceneIndex, newCommandIndex);
   };
@@ -409,16 +409,9 @@ const VNEditor = () => {
     const ctx = canvas.getContext('2d', { alpha: false });
     const [width, height] = project.resolution;
     
-    // CRITICAL: Disable image smoothing for pixel-perfect rendering
-    ctx.imageSmoothingEnabled = false;
-    ctx.mozImageSmoothingEnabled = false;
-    ctx.webkitImageSmoothingEnabled = false;
-    ctx.msImageSmoothingEnabled = false;
-    
     const scene = project.scenes[currentSceneIndex];
     if (!scene) return;
 
-    // Initialize characters array if missing
     if (!scene.characters) {
       scene.characters = [
         { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
@@ -427,28 +420,41 @@ const VNEditor = () => {
       ];
     }
 
-    // Clear canvas
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, width, height);
+    // Helper to load image as promise
+    const loadImage = (src) => {
+      return new Promise((resolve, reject) => {
+        if (!src) {
+          resolve(null);
+          return;
+        }
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = src;
+      });
+    };
 
-    // PHASE 1: Draw Background (ALWAYS FIRST)
-    const drawBackground = () => {
+    // Main render function
+    const render = async () => {
+      // Disable smoothing globally
+      ctx.imageSmoothingEnabled = false;
+      ctx.mozImageSmoothingEnabled = false;
+      ctx.webkitImageSmoothingEnabled = false;
+      ctx.msImageSmoothingEnabled = false;
+      
+      // Clear
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, width, height);
+
+      // STEP 1: Background
       if (scene.backgroundVisible !== false) {
         if (scene.backgroundImage) {
-          const img = new Image();
-          img.src = scene.backgroundImage;
-          if (img.complete) {
+          const bgImg = await loadImage(scene.backgroundImage);
+          if (bgImg) {
             ctx.globalAlpha = backgroundOpacity;
             ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(img, 0, 0, width, height);
+            ctx.drawImage(bgImg, 0, 0, width, height);
             ctx.globalAlpha = 1;
-          } else {
-            img.onload = () => {
-              ctx.globalAlpha = backgroundOpacity;
-              ctx.imageSmoothingEnabled = false;
-              ctx.drawImage(img, 0, 0, width, height);
-              ctx.globalAlpha = 1;
-            };
           }
         } else {
           ctx.globalAlpha = backgroundOpacity;
@@ -457,57 +463,45 @@ const VNEditor = () => {
           ctx.globalAlpha = 1;
         }
       }
-    };
 
-    // PHASE 2: Draw Characters (AFTER BACKGROUND)
-    const drawCharacters = () => {
+      // STEP 2: Characters (load all first)
+      const charImages = await Promise.all(
+        scene.characters.map(char => 
+          (char.visible && char.sprite) ? loadImage(char.sprite) : Promise.resolve(null)
+        )
+      );
+
       scene.characters.forEach((char, idx) => {
-        if (!char.visible || !char.sprite) return;
+        if (!char.visible || !charImages[idx]) return;
 
-        const img = new Image();
-        img.src = char.sprite;
+        const img = charImages[idx];
+        let sourceWidth = img.width;
+        let sourceHeight = img.height;
+        let sourceX = 0;
         
-        const renderChar = () => {
-          const charHeight = 120;
-          let sourceWidth = img.width;
-          let sourceX = 0;
-          
-          // Handle spritesheet animation
-          if (char.animated && char.frames > 1) {
-            sourceWidth = img.width / char.frames;
-            sourceX = characterFrames[idx] * sourceWidth;
-          }
-          
-          // Calculate final dimensions maintaining aspect ratio
-          const aspectRatio = sourceWidth / img.height;
-          const finalHeight = charHeight;
-          const finalWidth = finalHeight * aspectRatio;
-          
-          // Position character
-          let charX = (width - finalWidth) / 2;
-          if (char.position === 'left') charX = 20;
-          if (char.position === 'right') charX = width - finalWidth - 20;
-          
-          // Draw with opacity - PIXEL PERFECT
-          ctx.globalAlpha = char.opacity || 1;
-          ctx.imageSmoothingEnabled = false;
-          ctx.mozImageSmoothingEnabled = false;
-          ctx.webkitImageSmoothingEnabled = false;
-          ctx.msImageSmoothingEnabled = false;
-          ctx.drawImage(img, sourceX, 0, sourceWidth, img.height, charX, height - finalHeight - 10, finalWidth, finalHeight);
-          ctx.globalAlpha = 1;
-        };
-        
-        if (img.complete) {
-          renderChar();
-        } else {
-          img.onload = renderChar;
+        if (char.animated && char.frames > 1) {
+          sourceWidth = img.width / char.frames;
+          sourceX = characterFrames[idx] * sourceWidth;
         }
+        
+        let charX = Math.floor(width/4 - sourceWidth/4);
+        if (char.position === 'left') charX = 0;
+        if (char.position === 'right') charX = width - sourceWidth;
+        
+        const charY = Math.floor(height - sourceHeight);
+        
+        // CRITICAL: Set smoothing OFF right before draw
+        ctx.imageSmoothingEnabled = false;
+        ctx.mozImageSmoothingEnabled = false;
+        ctx.webkitImageSmoothingEnabled = false;
+        ctx.msImageSmoothingEnabled = false;
+        
+        ctx.globalAlpha = char.opacity || 1;
+        ctx.drawImage(img, sourceX, 0, sourceWidth, img.height, charX, charY, sourceWidth, img.height);
+        ctx.globalAlpha = 1;
       });
-    };
 
-    // PHASE 3: Draw UI (ALWAYS LAST - ON TOP)
-    const drawUI = () => {
+      // STEP 3: UI (always on top)
       const command = scene.commands[currentCommandIndex];
       if (!command || command.type !== 'dialogue') {
         drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
@@ -540,15 +534,7 @@ const VNEditor = () => {
       drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, fontFamily);
     };
 
-    // Execute rendering in strict order with small delay to ensure background loads first
-    drawBackground();
-    setTimeout(() => {
-      drawCharacters();
-      setTimeout(() => {
-        drawUI();
-      }, 10);
-    }, 10);
-
+    render();
   }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity, characterFrames]);
 
   const handleCanvasClick = (event) => {
