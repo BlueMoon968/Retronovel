@@ -484,7 +484,7 @@ const VNEditor = () => {
           sourceX = characterFrames[idx] * sourceWidth;
         }
         
-        let charX = Math.floor(width/4 - sourceWidth/4);
+        let charX = Math.floor(width/2 - sourceWidth/2);
         if (char.position === 'left') charX = 0;
         if (char.position === 'right') charX = width - sourceWidth;
         
