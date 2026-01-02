@@ -100,6 +100,13 @@ class AudioManager {
   stopAllSFX() {
     Howler.stop();
   }
+
+  stopAll() {
+    this.stopBGM();
+    this.stopBGS();
+    Howler.stop();
+  }
+
 }
 
 export const audioManager = new AudioManager();

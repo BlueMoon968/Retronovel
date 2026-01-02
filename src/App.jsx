@@ -111,6 +111,13 @@ const VNEditor = () => {
     }
   }, [isPlaying]);
 
+  // Stop all audio when stopping preview
+  useEffect(() => {
+    if (!isPlaying) {
+      audioManager.stopAll();
+    }
+  }, [isPlaying]);
+
   useEffect(() => {
     document.fonts.ready.then(() => setProject(p => ({...p})));
   }, []);
