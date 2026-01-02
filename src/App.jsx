@@ -408,11 +408,12 @@ const VNEditor = () => {
     if (!canvas) return;
     const ctx = canvas.getContext('2d', { alpha: false });
     const [width, height] = project.resolution;
-    ctx.imageSmoothingEnabled = false;
     
-    // Clear canvas
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, width, height);
+    // CRITICAL: Disable image smoothing for pixel-perfect rendering
+    ctx.imageSmoothingEnabled = false;
+    ctx.mozImageSmoothingEnabled = false;
+    ctx.webkitImageSmoothingEnabled = false;
+    ctx.msImageSmoothingEnabled = false;
     
     const scene = project.scenes[currentSceneIndex];
     if (!scene) return;
@@ -426,53 +427,47 @@ const VNEditor = () => {
       ];
     }
 
-    // Draw background
-    const drawBg = () => {
+    // Clear canvas
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, width, height);
+
+    // PHASE 1: Draw Background (ALWAYS FIRST)
+    const drawBackground = () => {
       if (scene.backgroundVisible !== false) {
         if (scene.backgroundImage) {
           const img = new Image();
           img.src = scene.backgroundImage;
-          img.onload = () => {
-            ctx.globalAlpha = backgroundOpacity;
-            ctx.drawImage(img, 0, 0, width, height);
-            ctx.globalAlpha = 1;
-            drawCharacters();
-          };
           if (img.complete) {
             ctx.globalAlpha = backgroundOpacity;
+            ctx.imageSmoothingEnabled = false;
             ctx.drawImage(img, 0, 0, width, height);
             ctx.globalAlpha = 1;
-            drawCharacters();
+          } else {
+            img.onload = () => {
+              ctx.globalAlpha = backgroundOpacity;
+              ctx.imageSmoothingEnabled = false;
+              ctx.drawImage(img, 0, 0, width, height);
+              ctx.globalAlpha = 1;
+            };
           }
         } else {
           ctx.globalAlpha = backgroundOpacity;
           ctx.fillStyle = scene.background;
           ctx.fillRect(0, 0, width, height);
           ctx.globalAlpha = 1;
-          drawCharacters();
         }
-      } else {
-        drawCharacters();
       }
     };
 
-    // Draw all characters (max 3)
+    // PHASE 2: Draw Characters (AFTER BACKGROUND)
     const drawCharacters = () => {
-      let loadedCount = 0;
-      const totalVisible = scene.characters.filter(c => c.visible && c.sprite).length;
-      
-      if (totalVisible === 0) {
-        drawUI();
-        return;
-      }
-
       scene.characters.forEach((char, idx) => {
         if (!char.visible || !char.sprite) return;
 
         const img = new Image();
         img.src = char.sprite;
         
-        const draw = () => {
+        const renderChar = () => {
           const charHeight = 120;
           let sourceWidth = img.width;
           let sourceX = 0;
@@ -493,24 +488,26 @@ const VNEditor = () => {
           if (char.position === 'left') charX = 20;
           if (char.position === 'right') charX = width - finalWidth - 20;
           
-          // Draw with opacity
+          // Draw with opacity - PIXEL PERFECT
           ctx.globalAlpha = char.opacity || 1;
+          ctx.imageSmoothingEnabled = false;
+          ctx.mozImageSmoothingEnabled = false;
+          ctx.webkitImageSmoothingEnabled = false;
+          ctx.msImageSmoothingEnabled = false;
           ctx.drawImage(img, sourceX, 0, sourceWidth, img.height, charX, height - finalHeight - 10, finalWidth, finalHeight);
           ctx.globalAlpha = 1;
-          
-          loadedCount++;
-          if (loadedCount === totalVisible) {
-            drawUI();
-          }
         };
         
-        img.onload = draw;
-        if (img.complete) draw();
+        if (img.complete) {
+          renderChar();
+        } else {
+          img.onload = renderChar;
+        }
       });
     };
 
-    // Draw UI (dialogue box, choices, etc.)
-    function drawUI() {
+    // PHASE 3: Draw UI (ALWAYS LAST - ON TOP)
+    const drawUI = () => {
       const command = scene.commands[currentCommandIndex];
       if (!command || command.type !== 'dialogue') {
         drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
@@ -541,9 +538,17 @@ const VNEditor = () => {
       }
       
       drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, fontFamily);
-    }
+    };
 
-    drawBg();
+    // Execute rendering in strict order with small delay to ensure background loads first
+    drawBackground();
+    setTimeout(() => {
+      drawCharacters();
+      setTimeout(() => {
+        drawUI();
+      }, 10);
+    }, 10);
+
   }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity, characterFrames]);
 
   const handleCanvasClick = (event) => {
