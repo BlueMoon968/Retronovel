@@ -59,7 +59,6 @@ const VNEditor = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [choicePositions, setChoicePositions] = useState(null);
-  const [characterFrames, setCharacterFrames] = useState([0, 0, 0]);
   const [backgroundOpacity, setBackgroundOpacity] = useState(1);
   
   const canvasRef = useRef(null);
@@ -67,6 +66,9 @@ const VNEditor = () => {
   const nameBoxImageRef = useRef(null);
   const transitionImageRef = useRef(null);
   const lastExecutedCommand = useRef(null);
+  const initialSceneState = useRef(null);
+  const animationFrameId = useRef(null);
+  const currentFrames = useRef([0, 0, 0]);
 
   useEffect(() => {
     const loadImages = async () => {
@@ -127,49 +129,68 @@ const VNEditor = () => {
     }
   }, [isPlaying, currentSceneIndex, currentCommandIndex, project.scenes]);
 
-  // Reset all data after stop - Returning to Editor Mode
+  // Reset when stopping
   useEffect(() => {
     if (!isPlaying) {
       lastExecutedCommand.current = null;
       audioManager.stopAll();
-
-      // Reset characters to initial state
-      const scene = project.scenes[currentSceneIndex];
-      if (scene && scene.characters) {
-        const initialChars = [
-          { sprite: scene.characters[0]?.sprite || null, position: scene.characters[0]?.position || 'center', visible: !!scene.characters[0]?.sprite, animated: scene.characters[0]?.animated || false, frames: scene.characters[0]?.frames || 1, frameSpeed: scene.characters[0]?.frameSpeed || 100, opacity: 1 },
-          { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
-          { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
-        ];
-        updateScene(currentSceneIndex, { characters: initialChars, backgroundVisible: true });
+      
+      // Ripristina stato iniziale della scena
+      if (initialSceneState.current) {
+        updateScene(currentSceneIndex, {
+          characters: initialSceneState.current.characters,
+          backgroundImage: initialSceneState.current.backgroundImage,
+          backgroundVisible: initialSceneState.current.backgroundVisible
+        });
+        initialSceneState.current = null;
       }
+      
       setBackgroundOpacity(1);
-      setCharacterFrames([0, 0, 0]);
+      currentFrames.current = [0, 0, 0];
+      
+      // Cancel animation loop
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+        animationFrameId.current = null;
+      }
     }
   }, [isPlaying, currentSceneIndex]);
 
-  // Character sprite animation
+  // Sprite animation loop (no state updates - direct canvas redraw)
   useEffect(() => {
     if (!isPlaying) return;
     
     const scene = project.scenes[currentSceneIndex];
-    const intervals = [];
+    const lastFrameTime = {};
     
-    scene.characters.forEach((char, idx) => {
-      if (char.visible && char.animated && char.frames > 1) {
-        const interval = setInterval(() => {
-          setCharacterFrames(prev => {
-            const newFrames = [...prev];
-            newFrames[idx] = (newFrames[idx] + 1) % char.frames;
-            return newFrames;
-          });
-        }, char.frameSpeed);
-        intervals.push(interval);
+    const animate = (timestamp) => {
+      scene.characters.forEach((char, idx) => {
+        if (char.visible && char.animated && char.frames > 1) {
+          if (!lastFrameTime[idx]) lastFrameTime[idx] = timestamp;
+          
+          const elapsed = timestamp - lastFrameTime[idx];
+          if (elapsed >= char.frameSpeed) {
+            currentFrames.current[idx] = (currentFrames.current[idx] + 1) % char.frames;
+            lastFrameTime[idx] = timestamp;
+          }
+        }
+      });
+      
+      // Trigger re-render only when needed
+      canvasRef.current?.dispatchEvent(new Event('forceRedraw'));
+      
+      animationFrameId.current = requestAnimationFrame(animate);
+    };
+    
+    animationFrameId.current = requestAnimationFrame(animate);
+    
+    return () => {
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+        animationFrameId.current = null;
       }
-    });
-    
-    return () => intervals.forEach(clearInterval);
-  }, [isPlaying, currentSceneIndex, project.scenes]);
+    };
+  }, [isPlaying, currentSceneIndex]);
 
   useEffect(() => {
     document.fonts.ready.then(() => setProject(p => ({...p})));
@@ -406,136 +427,141 @@ const VNEditor = () => {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d', { alpha: false });
-    const [width, height] = project.resolution;
     
-    const scene = project.scenes[currentSceneIndex];
-    if (!scene) return;
-
-    if (!scene.characters) {
-      scene.characters = [
-        { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
-        { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
-        { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
-      ];
-    }
-
-    // Helper to load image as promise
-    const loadImage = (src) => {
-      return new Promise((resolve, reject) => {
-        if (!src) {
-          resolve(null);
-          return;
-        }
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => resolve(null);
-        img.src = src;
-      });
-    };
-
-    // Main render function
-    const render = async () => {
-      // Disable smoothing globally
-      ctx.imageSmoothingEnabled = false;
-      ctx.mozImageSmoothingEnabled = false;
-      ctx.webkitImageSmoothingEnabled = false;
-      ctx.msImageSmoothingEnabled = false;
+    const handleRedraw = () => {
+      const ctx = canvas.getContext('2d', { alpha: false });
+      const [width, height] = project.resolution;
       
-      // Clear
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, width, height);
+      const scene = project.scenes[currentSceneIndex];
+      if (!scene) return;
 
-      // STEP 1: Background
-      if (scene.backgroundVisible !== false) {
-        if (scene.backgroundImage) {
-          const bgImg = await loadImage(scene.backgroundImage);
-          if (bgImg) {
-            ctx.globalAlpha = backgroundOpacity;
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(bgImg, 0, 0, width, height);
-            ctx.globalAlpha = 1;
-          }
-        } else {
-          ctx.globalAlpha = backgroundOpacity;
-          ctx.fillStyle = scene.background;
-          ctx.fillRect(0, 0, width, height);
-          ctx.globalAlpha = 1;
-        }
+      if (!scene.characters) {
+        scene.characters = [
+          { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+          { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+          { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
+        ];
       }
 
-      // STEP 2: Characters (load all first)
-      const charImages = await Promise.all(
-        scene.characters.map(char => 
-          (char.visible && char.sprite) ? loadImage(char.sprite) : Promise.resolve(null)
-        )
-      );
+      const loadImage = (src) => {
+        return new Promise((resolve, reject) => {
+          if (!src) {
+            resolve(null);
+            return;
+          }
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = src;
+        });
+      };
 
-      scene.characters.forEach((char, idx) => {
-        if (!char.visible || !charImages[idx]) return;
-
-        const img = charImages[idx];
-        let sourceWidth = img.width;
-        let sourceHeight = img.height;
-        let sourceX = 0;
-        
-        if (char.animated && char.frames > 1) {
-          sourceWidth = img.width / char.frames;
-          sourceX = characterFrames[idx] * sourceWidth;
-        }
-        
-        let charX = Math.floor(width/2 - sourceWidth/2);
-        if (char.position === 'left') charX = 0;
-        if (char.position === 'right') charX = width - sourceWidth;
-        
-        const charY = Math.floor(height - sourceHeight);
-        
-        // CRITICAL: Set smoothing OFF right before draw
+      const render = async () => {
         ctx.imageSmoothingEnabled = false;
         ctx.mozImageSmoothingEnabled = false;
         ctx.webkitImageSmoothingEnabled = false;
         ctx.msImageSmoothingEnabled = false;
         
-        ctx.globalAlpha = char.opacity || 1;
-        ctx.drawImage(img, sourceX, 0, sourceWidth, img.height, charX, charY, sourceWidth, img.height);
-        ctx.globalAlpha = 1;
-      });
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, width, height);
 
-      // STEP 3: UI (always on top)
-      const command = scene.commands[currentCommandIndex];
-      if (!command || command.type !== 'dialogue') {
-        drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
-        return;
-      }
-      
-      const fontFamily = 'dogica, monospace';
-      const boxX = 8, boxY = height - 60, boxWidth = width - 16, boxHeight = 52;
-      
-      const msgBoxDrawn = drawNinePatch(ctx, msgBoxImageRef.current, boxX, boxY, boxWidth, boxHeight);
-      if (!msgBoxDrawn) {
-        ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
-        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
-      }
-      
-      drawNameBox(ctx, nameBoxImageRef.current, command.speaker, boxX, boxY, fontFamily);
-      drawDialogueText(ctx, command.text, boxX, boxY, boxWidth, fontFamily);
-      
-      const positions = drawChoices(ctx, command, width, height, fontFamily);
-      setChoicePositions(positions);
-      
-      if (!command.choices || command.choices.length === 0) {
-        const hasMore = currentCommandIndex < scene.commands.length - 1 || currentSceneIndex < project.scenes.length - 1;
-        drawArrow(ctx, boxX, boxY, boxWidth, boxHeight, hasMore);
-      }
-      
-      drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, fontFamily);
+        // Background
+        if (scene.backgroundVisible !== false) {
+          if (scene.backgroundImage) {
+            const bgImg = await loadImage(scene.backgroundImage);
+            if (bgImg) {
+              ctx.globalAlpha = backgroundOpacity;
+              ctx.imageSmoothingEnabled = false;
+              ctx.drawImage(bgImg, 0, 0, width, height);
+              ctx.globalAlpha = 1;
+            }
+          } else {
+            ctx.globalAlpha = backgroundOpacity;
+            ctx.fillStyle = scene.background;
+            ctx.fillRect(0, 0, width, height);
+            ctx.globalAlpha = 1;
+          }
+        }
+
+        // Characters
+        const charImages = await Promise.all(
+          scene.characters.map(char => 
+            (char.visible && char.sprite) ? loadImage(char.sprite) : Promise.resolve(null)
+          )
+        );
+
+        scene.characters.forEach((char, idx) => {
+          if (!char.visible || !charImages[idx]) return;
+
+          const img = charImages[idx];
+          let sourceWidth = img.width;
+          let sourceX = 0;
+          
+          if (char.animated && char.frames > 1) {
+            sourceWidth = img.width / char.frames;
+            sourceX = currentFrames.current[idx] * sourceWidth;  // USA REF QUI
+          }
+          
+          let charX = Math.floor((width - sourceWidth) / 2);
+          if (char.position === 'left') charX = 0;
+          if (char.position === 'right') charX = width - sourceWidth;
+          
+          const charY = Math.floor(height - img.height);
+          
+          ctx.imageSmoothingEnabled = false;
+          ctx.mozImageSmoothingEnabled = false;
+          ctx.webkitImageSmoothingEnabled = false;
+          ctx.msImageSmoothingEnabled = false;
+          
+          ctx.globalAlpha = char.opacity || 1;
+          ctx.drawImage(img, Math.floor(sourceX), 0, Math.floor(sourceWidth), img.height, charX, charY, sourceWidth, img.height);
+          ctx.globalAlpha = 1;
+        });
+
+        // UI
+        const command = scene.commands[currentCommandIndex];
+        if (!command || command.type !== 'dialogue') {
+          drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
+          return;
+        }
+        
+        const fontFamily = 'dogica, monospace';
+        const boxX = 8, boxY = height - 60, boxWidth = width - 16, boxHeight = 52;
+        
+        const msgBoxDrawn = drawNinePatch(ctx, msgBoxImageRef.current, boxX, boxY, boxWidth, boxHeight);
+        if (!msgBoxDrawn) {
+          ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
+          ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+        }
+        
+        drawNameBox(ctx, nameBoxImageRef.current, command.speaker, boxX, boxY, fontFamily);
+        drawDialogueText(ctx, command.text, boxX, boxY, boxWidth, fontFamily);
+        
+        const positions = drawChoices(ctx, command, width, height, fontFamily);
+        setChoicePositions(positions);
+        
+        if (!command.choices || command.choices.length === 0) {
+          const hasMore = currentCommandIndex < scene.commands.length - 1 || currentSceneIndex < project.scenes.length - 1;
+          drawArrow(ctx, boxX, boxY, boxWidth, boxHeight, hasMore);
+        }
+        
+        drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, fontFamily);
+      };
+
+      render();
     };
-
-    render();
-  }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity, characterFrames]);
+    
+    // Listen for forced redraws
+    canvas.addEventListener('forceRedraw', handleRedraw);
+    handleRedraw();
+    
+    return () => {
+      canvas.removeEventListener('forceRedraw', handleRedraw);
+    };
+  }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity]);
 
   const handleCanvasClick = (event) => {
     if (!isPlaying || isTransitioning) return;
@@ -1173,7 +1199,35 @@ const VNEditor = () => {
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
         <div style={{ marginBottom: '16px', display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <button onClick={() => { setIsPlaying(!isPlaying); if (!isPlaying) { setCurrentSceneIndex(0); setCurrentCommandIndex(0); } }} style={{ padding: '10px 20px', background: isPlaying ? '#e74c3c' : '#27ae60', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', fontFamily: 'inherit' }}>{isPlaying ? '⏹ Stop' : '▶ Play'}</button>
+        <button
+          onClick={() => {
+            if (!isPlaying) {
+              const scene = project.scenes[currentSceneIndex];
+              initialSceneState.current = {
+                characters: scene.characters ? JSON.parse(JSON.stringify(scene.characters)) : null,
+                backgroundImage: scene.backgroundImage,
+                backgroundVisible: scene.backgroundVisible
+              };
+            }
+            setIsPlaying(!isPlaying);
+            if (!isPlaying) {
+              setCurrentSceneIndex(currentSceneIndex);
+              setCurrentCommandIndex(0);
+            }
+          }}
+          style={{
+            padding: '10px 20px',
+            background: isPlaying ? '#e74c3c' : '#27ae60',
+            color: '#fff',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            fontFamily: 'inherit'
+          }}
+        >
+          {isPlaying ? '⏹ Stop' : '▶ Play'}
+        </button>
           <div style={{ padding: '8px 16px', background: 'rgba(0, 0, 0, 0.3)', border: '1px solid #4a5568', fontSize: '11px' }}>Scene {currentSceneIndex + 1} / {project.scenes.length} • Command {currentCommandIndex + 1} / {scene?.commands.length || 0}</div>
         </div>
         <div style={{ position: 'relative', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)', border: '3px solid #4a5568' }}>
