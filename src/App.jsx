@@ -478,33 +478,46 @@ const VNEditor = () => {
     };
 
     const render = async () => {
-      // Clear canvas
+      // STEP 1: Always clear canvas
       ctx.clearRect(0, 0, width, height);
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, width, height);
       
-      // Disable smoothing
+      // STEP 2: Disable smoothing
       ctx.imageSmoothingEnabled = false;
       ctx.mozImageSmoothingEnabled = false;
       ctx.webkitImageSmoothingEnabled = false;
       ctx.msImageSmoothingEnabled = false;
       ctx.globalAlpha = 1;
 
-      // === EDITOR MODE PREVIEW ===
-      if (!isPlaying) {
-        // Draw background
+      // ==========================================
+      // STEP 3: BACKGROUND - BOTH EDITOR & PLAY
+      // ==========================================
+      if (scene.backgroundVisible !== false) {
         if (scene.backgroundImage) {
           const bgImg = await loadImage(scene.backgroundImage);
           if (bgImg) {
+            ctx.globalAlpha = isPlaying ? backgroundOpacity : 1;
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(bgImg, 0, 0, width, height);
+            ctx.globalAlpha = 1;
           }
         } else {
+          // Draw background color
+          ctx.globalAlpha = isPlaying ? backgroundOpacity : 1;
           ctx.fillStyle = scene.background;
           ctx.fillRect(0, 0, width, height);
+          ctx.globalAlpha = 1;
         }
-        
-        // Draw ONLY initial character (slot 0) - no animation
+      }
+
+      // ==========================================
+      // STEP 4: CHARACTERS
+      // ==========================================
+      
+      if (!isPlaying) {
+        // ===== EDITOR MODE =====
+        // Draw only initial character (slot 0), no animation
         if (scene.characters[0] && scene.characters[0].sprite) {
           const charImg = await loadImage(scene.characters[0].sprite);
           if (charImg) {
@@ -524,32 +537,13 @@ const VNEditor = () => {
           }
         }
         
-        // Draw scene indicator only
+        // Draw scene indicator and EXIT
         drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
-        return;
+        return; // EXIT EDITOR MODE - DO NOT DRAW UI
       }
 
-      // === PLAY MODE - Full rendering ===
-      
-      // Background
-      if (scene.backgroundVisible !== false) {
-        if (scene.backgroundImage) {
-          const bgImg = await loadImage(scene.backgroundImage);
-          if (bgImg) {
-            ctx.globalAlpha = backgroundOpacity;
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(bgImg, 0, 0, width, height);
-            ctx.globalAlpha = 1;
-          }
-        } else {
-          ctx.globalAlpha = backgroundOpacity;
-          ctx.fillStyle = scene.background;
-          ctx.fillRect(0, 0, width, height);
-          ctx.globalAlpha = 1;
-        }
-      }
-
-      // Characters with animation
+      // ===== PLAY MODE =====
+      // Draw all characters with animation
       const charImages = await Promise.all(
         scene.characters.map(char => 
           (char.visible && char.sprite) ? loadImage(char.sprite) : Promise.resolve(null)
@@ -584,7 +578,9 @@ const VNEditor = () => {
         ctx.globalAlpha = 1;
       });
 
-      // UI - Dialogue box
+      // ==========================================
+      // STEP 5: UI (ONLY in PLAY MODE)
+      // ==========================================
       const command = scene.commands[currentCommandIndex];
       if (!command || command.type !== 'dialogue') {
         drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
@@ -619,7 +615,6 @@ const VNEditor = () => {
 
     render();
   }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity, isPlaying, animationTick]);
-
 
   const handleCanvasClick = (event) => {
     if (!isPlaying || isTransitioning) return;
