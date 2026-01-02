@@ -120,27 +120,33 @@ const VNEditor = () => {
     if (command && command.type !== 'dialogue') {
       const commandKey = `${currentSceneIndex}-${currentCommandIndex}`;
       
-      // Execute only if not already executed
       if (lastExecutedCommand.current !== commandKey) {
         lastExecutedCommand.current = commandKey;
-        executeCommand(command);
+        executeCommand(command); // Già async
       }
     }
-  }, [isPlaying, currentSceneIndex, currentCommandIndex]);
+  }, [isPlaying, currentSceneIndex, currentCommandIndex, project.scenes]);
 
-  // Reset executed command tracker when stopping or changing scenes
+  // Reset all data after stop - Returning to Editor Mode
   useEffect(() => {
     if (!isPlaying) {
       lastExecutedCommand.current = null;
-    }
-  }, [isPlaying]);
-
-  // Stop all audio when stopping preview
-  useEffect(() => {
-    if (!isPlaying) {
       audioManager.stopAll();
+
+      // Reset characters to initial state
+      const scene = project.scenes[currentSceneIndex];
+      if (scene && scene.characters) {
+        const initialChars = [
+          { sprite: scene.characters[0]?.sprite || null, position: scene.characters[0]?.position || 'center', visible: !!scene.characters[0]?.sprite, animated: scene.characters[0]?.animated || false, frames: scene.characters[0]?.frames || 1, frameSpeed: scene.characters[0]?.frameSpeed || 100, opacity: 1 },
+          { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+          { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
+        ];
+        updateScene(currentSceneIndex, { characters: initialChars, backgroundVisible: true });
+      }
+      setBackgroundOpacity(1);
+      setCharacterFrames([0, 0, 0]);
     }
-  }, [isPlaying]);
+  }, [isPlaying, currentSceneIndex]);
 
   // Character sprite animation
   useEffect(() => {
@@ -198,7 +204,13 @@ const VNEditor = () => {
       advanceCommand();
     } else if (command.type === 'showCharacter') {
       const scene = project.scenes[currentSceneIndex];
-      const newChar = {
+      const chars = [...(scene.characters || [
+        { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+        { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+        { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
+      ])];
+      
+      chars[command.charIndex] = {
         sprite: command.sprite,
         position: command.position,
         visible: true,
@@ -208,13 +220,13 @@ const VNEditor = () => {
         opacity: command.faded ? 0 : 1
       };
       
-      updateScene(currentSceneIndex, {
-        characters: scene.characters.map((c, i) => i === command.charIndex ? newChar : c)
-      });
+      updateScene(currentSceneIndex, { characters: chars });
       
       if (command.faded) {
+        await new Promise(resolve => setTimeout(resolve, 50));
         await fadeCharacter(command.charIndex, 1, command.fadeDuration);
       }
+      
       advanceCommand();
     } else if (command.type === 'hideCharacter') {
       if (command.faded) {
@@ -222,11 +234,10 @@ const VNEditor = () => {
       }
       
       const scene = project.scenes[currentSceneIndex];
-      updateScene(currentSceneIndex, {
-        characters: scene.characters.map((c, i) => 
-          i === command.charIndex ? { ...c, visible: false, opacity: 1 } : c
-        )
-      });
+      const chars = [...scene.characters];
+      chars[command.charIndex] = { ...chars[command.charIndex], visible: false, opacity: 1 };
+      
+      updateScene(currentSceneIndex, { characters: chars });
       advanceCommand();
     } else if (command.type === 'showBackground') {
       if (command.faded) {
@@ -334,22 +345,31 @@ const VNEditor = () => {
 
   const fadeCharacter = (charIndex, targetOpacity, duration) => {
     return new Promise(resolve => {
-      const scene = project.scenes[currentSceneIndex];
-      const startOpacity = scene.characters?.[charIndex]?.opacity || 1;
       const startTime = Date.now();
+      let animationFrame;
       
       const animate = () => {
+        const scene = project.scenes[currentSceneIndex];
+        if (!scene || !scene.characters || !scene.characters[charIndex]) {
+          resolve();
+          return;
+        }
+        
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / duration, 1);
+        const startOpacity = scene.characters[charIndex].opacity || 0;
         const currentOpacity = startOpacity + (targetOpacity - startOpacity) * progress;
         
-        const newChars = [...scene.characters];
-        newChars[charIndex] = { ...newChars[charIndex], opacity: currentOpacity };
-        
-        updateScene(currentSceneIndex, { characters: newChars });
+        setProject(prev => {
+          const newScenes = [...prev.scenes];
+          const newChars = [...newScenes[currentSceneIndex].characters];
+          newChars[charIndex] = { ...newChars[charIndex], opacity: currentOpacity };
+          newScenes[currentSceneIndex] = { ...newScenes[currentSceneIndex], characters: newChars };
+          return { ...prev, scenes: newScenes };
+        });
         
         if (progress < 1) {
-          requestAnimationFrame(animate);
+          animationFrame = requestAnimationFrame(animate);
         } else {
           resolve();
         }
@@ -363,6 +383,7 @@ const VNEditor = () => {
     return new Promise(resolve => {
       const startOpacity = backgroundOpacity;
       const startTime = Date.now();
+      let animationFrame;
       
       const animate = () => {
         const elapsed = Date.now() - startTime;
@@ -372,7 +393,7 @@ const VNEditor = () => {
         setBackgroundOpacity(currentOpacity);
         
         if (progress < 1) {
-          requestAnimationFrame(animate);
+          animationFrame = requestAnimationFrame(animate);
         } else {
           resolve();
         }
