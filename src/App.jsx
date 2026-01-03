@@ -26,7 +26,7 @@ const VNEditor = () => {
         id: 1,
         name: "Scene 1",
         background: "#2d5a3d",
-        backgroundImage: null,  // Initial background
+        backgroundImage: null,
         backgroundVisible: true,
         characters: [
           { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
@@ -70,6 +70,30 @@ const VNEditor = () => {
   const initialSceneState = useRef(null);
   const animationFrameId = useRef(null);
   const currentFrames = useRef([0, 0, 0]);
+  const isRenderingEditor = useRef(false);
+
+  // ===== FIX #1: Initialize missing characters arrays =====
+  useEffect(() => {
+    let needsUpdate = false;
+    const updatedScenes = project.scenes.map(scene => {
+      if (!scene.characters) {
+        needsUpdate = true;
+        return {
+          ...scene,
+          characters: [
+            { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+            { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+            { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
+          ]
+        };
+      }
+      return scene;
+    });
+
+    if (needsUpdate) {
+      setProject(prev => ({ ...prev, scenes: updatedScenes }));
+    }
+  }, [project.scenes]);
 
   useEffect(() => {
     const loadImages = async () => {
@@ -125,7 +149,7 @@ const VNEditor = () => {
       
       if (lastExecutedCommand.current !== commandKey) {
         lastExecutedCommand.current = commandKey;
-        executeCommand(command); // Già async
+        executeCommand(command);
       }
     }
   }, [isPlaying, currentSceneIndex, currentCommandIndex, project.scenes]);
@@ -135,20 +159,6 @@ const VNEditor = () => {
     if (!isPlaying) {
       lastExecutedCommand.current = null;
       audioManager.stopAll();
-      
-      // Force canvas clear
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const ctx = canvas.getContext('2d');
-        const [width, height] = project.resolution;
-        ctx.clearRect(0, 0, width, height);
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, width, height);
-        
-        // Ridisegna scene indicator
-        ctx.imageSmoothingEnabled = false;
-        drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
-      }
       
       if (initialSceneState.current) {
         updateScene(currentSceneIndex, {
@@ -161,7 +171,7 @@ const VNEditor = () => {
       
       setBackgroundOpacity(1);
       currentFrames.current = [0, 0, 0];
-      setAnimationTick(0); // RESET ANCHE QUESTO
+      setAnimationTick(0);
       
       if (animationFrameId.current) {
         cancelAnimationFrame(animationFrameId.current);
@@ -444,177 +454,238 @@ const VNEditor = () => {
     });
   };
 
+  // ===== FIX #2: Main rendering useEffect - SYNC for EDITOR, ASYNC for PLAY =====
   // Main rendering useEffect - EDITOR + PLAY mode
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d', { alpha: false });
-    const [width, height] = project.resolution;
-    
-    const scene = project.scenes[currentSceneIndex];
-    if (!scene) return;
-
-    // Initialize characters if missing
-    if (!scene.characters) {
-      scene.characters = [
-        { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
-        { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
-        { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
-      ];
-    }
-
-    const loadImage = (src) => {
-      return new Promise((resolve) => {
-        if (!src) {
-          resolve(null);
-          return;
-        }
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => resolve(null);
-        img.src = src;
-      });
-    };
-
-    const render = async () => {
-      // STEP 1: Always clear canvas
-      ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, width, height);
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
       
-      // STEP 2: Disable smoothing
-      ctx.imageSmoothingEnabled = false;
-      ctx.mozImageSmoothingEnabled = false;
-      ctx.webkitImageSmoothingEnabled = false;
-      ctx.msImageSmoothingEnabled = false;
-      ctx.globalAlpha = 1;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      const [width, height] = project.resolution;
+      
+      const scene = project.scenes[currentSceneIndex];
+      if (!scene || !scene.characters) return;
 
-      // ==========================================
-      // STEP 3: BACKGROUND - BOTH EDITOR & PLAY
-      // ==========================================
-      if (scene.backgroundVisible !== false) {
-        if (scene.backgroundImage) {
-          const bgImg = await loadImage(scene.backgroundImage);
-          if (bgImg) {
-            ctx.globalAlpha = isPlaying ? backgroundOpacity : 1;
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(bgImg, 0, 0, width, height);
-            ctx.globalAlpha = 1;
+      const loadImage = (src) => {
+        return new Promise((resolve) => {
+          if (!src) {
+            resolve(null);
+            return;
           }
-        } else {
-          // Draw background color
-          ctx.globalAlpha = isPlaying ? backgroundOpacity : 1;
-          ctx.fillStyle = scene.background;
-          ctx.fillRect(0, 0, width, height);
-          ctx.globalAlpha = 1;
-        }
-      }
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = src;
+        });
+      };
 
-      // ==========================================
-      // STEP 4: CHARACTERS
-      // ==========================================
-      
+      // ===== EDITOR MODE - SYNC RENDERING WITH UI PREVIEW =====
       if (!isPlaying) {
-        // ===== EDITOR MODE =====
-        // Draw only initial character (slot 0), no animation
-        if (scene.characters[0] && scene.characters[0].sprite) {
-          const charImg = await loadImage(scene.characters[0].sprite);
-          if (charImg) {
-            let sourceWidth = charImg.width;
-            if (scene.characters[0].animated && scene.characters[0].frames > 1) {
-              sourceWidth = charImg.width / scene.characters[0].frames;
-            }
-            
-            let charX = Math.floor((width - sourceWidth) / 2);
-            if (scene.characters[0].position === 'left') charX = 0;
-            if (scene.characters[0].position === 'right') charX = width - sourceWidth;
-            
-            const charY = Math.floor(height - charImg.height);
-            
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(charImg, 0, 0, sourceWidth, charImg.height, charX, charY, sourceWidth, charImg.height);
-          }
-        }
-        
-        // Draw scene indicator and EXIT
-        drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
-        return; // EXIT EDITOR MODE - DO NOT DRAW UI
-      }
-
-      // ===== PLAY MODE =====
-      // Draw all characters with animation
-      const charImages = await Promise.all(
-        scene.characters.map(char => 
-          (char.visible && char.sprite) ? loadImage(char.sprite) : Promise.resolve(null)
-        )
-      );
-
-      scene.characters.forEach((char, idx) => {
-        if (!char.visible || !charImages[idx]) return;
-
-        const img = charImages[idx];
-        let sourceWidth = img.width;
-        let sourceX = 0;
-        
-        if (char.animated && char.frames > 1) {
-          sourceWidth = img.width / char.frames;
-          sourceX = currentFrames.current[idx] * sourceWidth;
-        }
-        
-        let charX = Math.floor((width - sourceWidth) / 2);
-        if (char.position === 'left') charX = 0;
-        if (char.position === 'right') charX = width - sourceWidth;
-        
-        const charY = Math.floor(height - img.height);
+        if (isRenderingEditor.current) return;
+        isRenderingEditor.current = true;
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, width, height);
         
         ctx.imageSmoothingEnabled = false;
         ctx.mozImageSmoothingEnabled = false;
         ctx.webkitImageSmoothingEnabled = false;
         ctx.msImageSmoothingEnabled = false;
-        
-        ctx.globalAlpha = char.opacity || 1;
-        ctx.drawImage(img, Math.floor(sourceX), 0, Math.floor(sourceWidth), img.height, charX, charY, sourceWidth, img.height);
         ctx.globalAlpha = 1;
-      });
 
-      // ==========================================
-      // STEP 5: UI (ONLY in PLAY MODE)
-      // ==========================================
-      const command = scene.commands[currentCommandIndex];
-      if (!command || command.type !== 'dialogue') {
-        drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
-        return;
-      }
-      
-      const fontFamily = 'dogica, monospace';
-      const boxX = 8, boxY = height - 60, boxWidth = width - 16, boxHeight = 52;
-      
-      const msgBoxDrawn = drawNinePatch(ctx, msgBoxImageRef.current, boxX, boxY, boxWidth, boxHeight);
-      if (!msgBoxDrawn) {
-        ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
-        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
-      }
-      
-      drawNameBox(ctx, nameBoxImageRef.current, command.speaker, boxX, boxY, fontFamily);
-      drawDialogueText(ctx, command.text, boxX, boxY, boxWidth, fontFamily);
-      
-      const positions = drawChoices(ctx, command, width, height, fontFamily);
-      setChoicePositions(positions);
-      
-      if (!command.choices || command.choices.length === 0) {
-        const hasMore = currentCommandIndex < scene.commands.length - 1 || currentSceneIndex < project.scenes.length - 1;
-        drawArrow(ctx, boxX, boxY, boxWidth, boxHeight, hasMore);
-      }
-      
-      drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, fontFamily);
-    };
+        // Draw background
+        if (scene.backgroundVisible !== false) {
+          if (scene.backgroundImage) {
+            const bgImg = new Image();
+            bgImg.onload = () => {
+              ctx.imageSmoothingEnabled = false;
+              ctx.drawImage(bgImg, 0, 0, width, height);
+              drawCharacterAndUI();
+            };
+            bgImg.onerror = () => {
+              ctx.fillStyle = scene.background;
+              ctx.fillRect(0, 0, width, height);
+              drawCharacterAndUI();
+            };
+            bgImg.src = scene.backgroundImage;
+          } else {
+            ctx.fillStyle = scene.background;
+            ctx.fillRect(0, 0, width, height);
+            drawCharacterAndUI();
+          }
+        } else {
+          drawCharacterAndUI();
+        }
 
-    render();
-  }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity, isPlaying, animationTick]);
+        function drawCharacterAndUI() {
+          // Draw character if exists
+          if (scene.characters[0] && scene.characters[0].sprite) {
+            const charImg = new Image();
+            charImg.onload = () => {
+              let sourceWidth = charImg.width;
+              if (scene.characters[0].animated && scene.characters[0].frames > 1) {
+                sourceWidth = charImg.width / scene.characters[0].frames;
+              }
+              
+              let charX = Math.floor((width - sourceWidth) / 2);
+              if (scene.characters[0].position === 'left') charX = 0;
+              if (scene.characters[0].position === 'right') charX = width - sourceWidth;
+              
+              const charY = Math.floor(height - charImg.height);
+              
+              ctx.imageSmoothingEnabled = false;
+              ctx.drawImage(charImg, 0, 0, sourceWidth, charImg.height, charX, charY, sourceWidth, charImg.height);
+              
+              // Draw UI after character
+              drawEditorUI();
+            };
+            charImg.onerror = () => {
+              drawEditorUI();
+            };
+            charImg.src = scene.characters[0].sprite;
+          } else {
+            // No character, draw UI directly
+            drawEditorUI();
+          }
+        }
+
+        function drawEditorUI() {
+          const command = scene.commands[currentCommandIndex];
+          
+          // Draw dialogue box if current command is dialogue
+          if (command && command.type === 'dialogue') {
+            const fontFamily = 'dogica, monospace';
+            const boxX = 8, boxY = height - 60, boxWidth = width - 16, boxHeight = 52;
+            
+            const msgBoxDrawn = drawNinePatch(ctx, msgBoxImageRef.current, boxX, boxY, boxWidth, boxHeight);
+            if (!msgBoxDrawn) {
+              ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
+              ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+              ctx.strokeStyle = '#fff';
+              ctx.lineWidth = 2;
+              ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+            }
+            
+            drawNameBox(ctx, nameBoxImageRef.current, command.speaker, boxX, boxY, fontFamily);
+            drawDialogueText(ctx, command.text, boxX, boxY, boxWidth, fontFamily);
+          }
+          
+          // Always draw scene indicator
+          drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
+          isRenderingEditor.current = false;
+        }
+        
+        return; // Exit early for EDITOR mode
+      }
+
+      // ===== PLAY MODE - ASYNC RENDERING WITH OFFSCREEN BUFFER =====
+      const render = async () => {
+        // Create offscreen canvas to prevent flicker
+        const offscreen = document.createElement('canvas');
+        offscreen.width = width;
+        offscreen.height = height;
+        const offCtx = offscreen.getContext('2d', { alpha: false });
+        
+        offCtx.imageSmoothingEnabled = false;
+        offCtx.mozImageSmoothingEnabled = false;
+        offCtx.webkitImageSmoothingEnabled = false;
+        offCtx.msImageSmoothingEnabled = false;
+        offCtx.globalAlpha = 1;
+
+        // BACKGROUND on offscreen
+        if (scene.backgroundVisible !== false) {
+          if (scene.backgroundImage) {
+            const bgImg = await loadImage(scene.backgroundImage);
+            if (bgImg) {
+              offCtx.globalAlpha = backgroundOpacity;
+              offCtx.imageSmoothingEnabled = false;
+              offCtx.drawImage(bgImg, 0, 0, width, height);
+              offCtx.globalAlpha = 1;
+            }
+          } else {
+            offCtx.globalAlpha = backgroundOpacity;
+            offCtx.fillStyle = scene.background;
+            offCtx.fillRect(0, 0, width, height);
+            offCtx.globalAlpha = 1;
+          }
+        }
+
+        // CHARACTERS on offscreen
+        const charImages = await Promise.all(
+          scene.characters.map(char => 
+            (char.visible && char.sprite) ? loadImage(char.sprite) : Promise.resolve(null)
+          )
+        );
+
+        scene.characters.forEach((char, idx) => {
+          if (!char.visible || !charImages[idx]) return;
+
+          const img = charImages[idx];
+          let sourceWidth = img.width;
+          let sourceX = 0;
+          
+          if (char.animated && char.frames > 1) {
+            sourceWidth = img.width / char.frames;
+            sourceX = currentFrames.current[idx] * sourceWidth;
+          }
+          
+          let charX = Math.floor((width - sourceWidth) / 2);
+          if (char.position === 'left') charX = 0;
+          if (char.position === 'right') charX = width - sourceWidth;
+          
+          const charY = Math.floor(height - img.height);
+          
+          offCtx.imageSmoothingEnabled = false;
+          offCtx.mozImageSmoothingEnabled = false;
+          offCtx.webkitImageSmoothingEnabled = false;
+          offCtx.msImageSmoothingEnabled = false;
+          
+          offCtx.globalAlpha = char.opacity || 1;
+          offCtx.drawImage(img, Math.floor(sourceX), 0, Math.floor(sourceWidth), img.height, charX, charY, sourceWidth, img.height);
+          offCtx.globalAlpha = 1;
+        });
+
+        // NOW blit offscreen to main canvas (single atomic operation)
+        ctx.clearRect(0, 0, width, height);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(offscreen, 0, 0);
+
+        // UI on main canvas
+        const command = scene.commands[currentCommandIndex];
+        if (!command || command.type !== 'dialogue') {
+          drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
+          return;
+        }
+        
+        const fontFamily = 'dogica, monospace';
+        const boxX = 8, boxY = height - 60, boxWidth = width - 16, boxHeight = 52;
+        
+        const msgBoxDrawn = drawNinePatch(ctx, msgBoxImageRef.current, boxX, boxY, boxWidth, boxHeight);
+        if (!msgBoxDrawn) {
+          ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
+          ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+        }
+        
+        drawNameBox(ctx, nameBoxImageRef.current, command.speaker, boxX, boxY, fontFamily);
+        drawDialogueText(ctx, command.text, boxX, boxY, boxWidth, fontFamily);
+        
+        const positions = drawChoices(ctx, command, width, height, fontFamily);
+        setChoicePositions(positions);
+        
+        if (!command.choices || command.choices.length === 0) {
+          const hasMore = currentCommandIndex < scene.commands.length - 1 || currentSceneIndex < project.scenes.length - 1;
+          drawArrow(ctx, boxX, boxY, boxWidth, boxHeight, hasMore);
+        }
+        
+        drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, fontFamily);
+      };
+
+      render();
+      
+    }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity, isPlaying, animationTick]);
 
   const handleCanvasClick = (event) => {
     if (!isPlaying || isTransitioning) return;
