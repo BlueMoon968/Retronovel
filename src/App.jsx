@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import CommandEditor from './components/CommandEditor';
 import FlagsManager from './components/FlagsManager';
+import VariablesManager from './components/VariablesManager';
 import { drawNinePatch, drawNameBox, drawDialogueText, drawChoices, drawArrow, drawSceneIndicator } from './engine/renderEngine';
 import { performGradientWipe, captureScene } from './engine/transitionEngine';
 import { generateGameHTML } from './engine/exportEngine';
@@ -11,6 +12,7 @@ const VNEditor = () => {
     title: "My Visual Novel",
     resolution: [256, 192],
     flags: [],
+    variables: [],
     settings: { scale: 2, fontFamily: 'dogica, monospace', customFont: null, customMsgBox: null, customNameBox: null, customTransition: null, transitionDuration: 800,     masterVolumeBGM: 1.0,
     masterVolumeBGS: 1.0,
     masterVolumeSFX: 1.0,
@@ -238,7 +240,28 @@ const VNEditor = () => {
     if (command.type === 'setFlag') {
       setProject({ ...project, flags: project.flags.map(f => f.name === command.flagName ? { ...f, value: command.flagValue } : f) });
       advanceCommand();
-    } else if (command.type === 'goto') {
+    }
+    else if (command.type === 'setVariable') { // ← AGGIUNGI
+      setProject({ 
+        ...project, 
+        variables: project.variables.map(v => {
+          if (v.name === command.variableName) {
+            let newValue = v.value;
+            if (command.operation === 'set') {
+              newValue = command.variableValue;
+            } else if (command.operation === 'add') {
+              newValue = Math.min(255, v.value + command.variableValue);
+            } else if (command.operation === 'subtract') {
+              newValue = Math.max(0, v.value - command.variableValue);
+            }
+            return { ...v, value: newValue };
+          }
+          return v;
+        })
+      });
+      advanceCommand();
+    }
+    else if (command.type === 'goto') {
       command.useTransition ? changeSceneWithTransition(command.targetScene, 0) : (setCurrentSceneIndex(command.targetScene), setCurrentCommandIndex(0));
     } else if (command.type === 'playBGM') {
       if (command.audioFile) audioManager.playBGM(command.audioFile, command.volume / 100, command.pitch / 100, command.loop);
@@ -945,7 +968,7 @@ const VNEditor = () => {
                 </>
               )}
             </div>
-            <CommandEditor commands={scene.commands} sceneIndex={currentSceneIndex} updateCommands={(cmds) => updateScene(currentSceneIndex, { commands: cmds })} totalScenes={project.scenes.length} flags={project.flags} audio={project.audio} onJumpToCommand={(index) => setCurrentCommandIndex(index)} characters={project.characters} backgrounds={project.backgrounds}/>
+            <CommandEditor commands={scene.commands} sceneIndex={currentSceneIndex} updateCommands={(cmds) => updateScene(currentSceneIndex, { commands: cmds })} totalScenes={project.scenes.length} flags={project.flags} audio={project.audio} onJumpToCommand={(index) => setCurrentCommandIndex(index)} characters={project.characters} backgrounds={project.backgrounds} variables={project.variables}/>
           </div>
         )}
 
@@ -1099,6 +1122,7 @@ const VNEditor = () => {
             <label style={{ fontSize: '11px', marginBottom: '4px', display: 'block' }}>Transition Duration ({project.settings.transitionDuration}ms):</label>
             <input type="range" min="200" max="2000" step="100" value={project.settings.transitionDuration} onChange={(e) => setProject({ ...project, settings: { ...project.settings, transitionDuration: parseInt(e.target.value) } })} style={{ width: '100%', marginBottom: '16px' }} />
             <FlagsManager flags={project.flags} updateFlags={(flags) => setProject({ ...project, flags })} />
+            <VariablesManager variables={project.variables} updateVariables={(variables) => setProject({ ...project, variables })} />
             {/* MASTER VOLUME */}
             <div style={{ 
               padding: '12px', 

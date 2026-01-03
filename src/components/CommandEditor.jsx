@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ChoiceEditor from './ChoiceEditor';
 
-const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flags, audio, characters, backgrounds, onJumpToCommand }) => {
+const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flags, variables, audio, characters, backgrounds, onJumpToCommand }) => {
   const [showCommandMenu, setShowCommandMenu] = useState(false);
   const [collapsedCommands, setCollapsedCommands] = useState({});
 
@@ -9,10 +9,15 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
     audio = { bgm: [], bgs: [], sfx: [] };
   }
 
+  if (!variables) {
+    variables = []
+  }
+
   const commandCategories = {
     'Dialogues & Logic': [
       { type: 'dialogue', icon: '💬', label: 'Add Dialogue' },
       { type: 'setFlag', icon: '🚩', label: 'Set Flag' },
+      { type: 'setVariable', icon: '🔢', label: 'Set Variable' },
       { type: 'goto', icon: '➡️', label: 'Goto Scene' },
       { type: 'showCharacter', icon: '👤', label: 'Show/Change Character' },
       { type: 'hideCharacter', icon: '👻', label: 'Hide Character' },
@@ -43,6 +48,10 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
         newCommand.flagName = flags.length > 0 ? flags[0].name : '';
         newCommand.flagValue = true;
         break;
+      case 'setVariable':
+        newCommand.variableName = project.variables?.length > 0 ? project.variables[0].name : '';
+        newCommand.variableValue = 0;
+        newCommand.operation = 'set'; // set, add, subtract
       case 'goto':
         newCommand.targetScene = Math.min(sceneIndex + 1, totalScenes - 1);
         newCommand.useTransition = true;
@@ -135,6 +144,7 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
   const getCommandLabel = (command) => {
     if (command.type === 'dialogue') return `${command.speaker}: ${command.text.substring(0, 30)}...`;
     if (command.type === 'setFlag') return `Set ${command.flagName} = ${command.flagValue}`;
+    if (command.type === 'setVariable') return `Set ${command.variableName} ${command.operation} ${command.variableValue}`;
     if (command.type === 'goto') return `Goto Scene ${command.targetScene + 1}`;
     if (command.type === 'playBGM') return `Play BGM`;
     if (command.type === 'playBGS') return `Play BGS`;
@@ -180,7 +190,7 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
 
       {/* Command list */}
       {commands.map((command, cmdIdx) => (
-        <div key={command.id} style={{ padding: '8px', background: '#2a2a3e', border: '1px solid #4a5568', marginBottom: '8px' }}>
+        <div key={command.id} style={{ padding: '6px', background: '#2a2a3e', border: '1px solid #4a5568', marginBottom: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: collapsedCommands[cmdIdx] ? '0' : '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, cursor: 'pointer' }} onClick={() => onJumpToCommand && onJumpToCommand(cmdIdx)}>
               <button onClick={(e) => {
@@ -218,15 +228,67 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
               {/* SET FLAG COMMAND */}
               {command.type === 'setFlag' && (
                 <>
-                  <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Select flag:</label>
-                  <select value={command.flagName || ''} onChange={(e) => updateCommand(cmdIdx, { flagName: e.target.value })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '8px' }}>
-                    <option value="">-- Select Flag --</option>
+                  <label style={{ display: 'block', fontSize: '9px', color: '#888', marginBottom: '2px' }}>Flag:</label>
+                  <select 
+                    value={command.flagName || ''} 
+                    onChange={(e) => updateCommand(cmdIdx, { flagName: e.target.value })} 
+                    style={{ width: '100%', padding: '4px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '10px', fontFamily: 'inherit', marginBottom: '6px' }}
+                  >
+                    <option value="">-- Select --</option>
                     {flags.map(flag => <option key={flag.id} value={flag.name}>{flag.name}</option>)}
                   </select>
-                  <label style={{ display: 'flex', alignItems: 'center', fontSize: '11px', color: command.flagValue ? '#27ae60' : '#e74c3c' }}>
-                    <input type="checkbox" checked={command.flagValue} onChange={(e) => updateCommand(cmdIdx, { flagValue: e.target.checked })} style={{ marginRight: '8px' }} />
-                    Set to {command.flagValue ? 'TRUE' : 'FALSE'}
+                  <label style={{ display: 'flex', alignItems: 'center', fontSize: '10px', color: command.flagValue ? '#27ae60' : '#e74c3c' }}>
+                    <input type="checkbox" checked={command.flagValue} onChange={(e) => updateCommand(cmdIdx, { flagValue: e.target.checked })} style={{ marginRight: '6px' }} />
+                    {command.flagValue ? 'TRUE' : 'FALSE'}
                   </label>
+                </>
+              )}
+
+              {/* SET VARIABLE COMMAND */}
+              {command.type === 'setVariable' && (
+                <>
+                  <label style={{ display: 'block', fontSize: '9px', color: '#888', marginBottom: '2px' }}>Variable:</label>
+                  <select 
+                    value={command.variableName || ''} 
+                    onChange={(e) => updateCommand(cmdIdx, { variableName: e.target.value })} 
+                    style={{ width: '100%', padding: '4px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '10px', fontFamily: 'inherit', marginBottom: '6px' }}
+                  >
+                    <option value="">-- Select --</option>
+                    {variables.map(variable => <option key={variable.id} value={variable.name}>{variable.name}</option>)}
+                  </select>
+                  
+                  <div style={{ display: 'flex', gap: '4px', marginBottom: '6px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '9px', color: '#888', marginBottom: '2px' }}>Operation:</label>
+                      <select 
+                        value={command.operation || 'set'} 
+                        onChange={(e) => updateCommand(cmdIdx, { operation: e.target.value })} 
+                        style={{ width: '100%', padding: '4px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '10px', fontFamily: 'inherit' }}
+                      >
+                        <option value="set">Set</option>
+                        <option value="add">Add</option>
+                        <option value="subtract">Sub</option>
+                      </select>
+                    </div>
+                    
+                    <div style={{ width: '70px' }}>
+                      <label style={{ display: 'block', fontSize: '9px', color: '#888', marginBottom: '2px' }}>Value:</label>
+                      <input 
+                        type="number" 
+                        min="0" 
+                        max="255" 
+                        value={command.variableValue || 0} 
+                        onChange={(e) => updateCommand(cmdIdx, { variableValue: Math.max(0, Math.min(255, parseInt(e.target.value) || 0)) })} 
+                        style={{ width: '100%', padding: '4px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '10px', fontFamily: 'inherit', textAlign: 'center' }} 
+                      />
+                    </div>
+                  </div>
+                  
+                  <div style={{ fontSize: '8px', color: '#666', padding: '4px', background: '#1a1a2e', border: '1px solid #333' }}>
+                    {command.operation === 'set' && '= exact value'}
+                    {command.operation === 'add' && '+ (max 255)'}
+                    {command.operation === 'subtract' && '- (min 0)'}
+                  </div>
                 </>
               )}
 
