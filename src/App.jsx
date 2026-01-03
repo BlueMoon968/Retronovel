@@ -735,7 +735,9 @@ const VNEditor = () => {
         }
         
         drawNameBox(ctx, nameBoxImageRef.current, command.speaker, boxX, boxY, fontFamily);
-        drawDialogueText(ctx, command.text, boxX, boxY, boxWidth, fontFamily);
+        // Use displayed text from typewriter effect
+        const textToRender = isTyping ? displayedText : command.text;
+        drawDialogueText(ctx, textToRender, boxX, boxY, boxWidth, fontFamily);
         
         const positions = drawChoices(ctx, command, width, height, fontFamily);
         setChoicePositions(positions);
