@@ -8,6 +8,47 @@ class AudioManager {
     this.masterVolume = { bgm: 1.0, bgs: 1.0, sfx: 1.0 };
     this.systemSFX = { cursor: null, confirm: null, buzzer: null, lettersound: null };
     this.letterSoundEnabled = true;
+    this.isInitialized = false;
+  }
+
+  initSystemSounds(systemSFX) {
+    if (this.isInitialized) return;
+    
+    if (systemSFX.cursor) {
+      this.systemSFX.cursor = new Howl({ 
+        src: [systemSFX.cursor], 
+        volume: 0.4 * this.masterVolume.sfx 
+      });
+    }
+    if (systemSFX.confirm) {
+      this.systemSFX.confirm = new Howl({ 
+        src: [systemSFX.confirm], 
+        volume: 0.5 * this.masterVolume.sfx 
+      });
+    }
+    if (systemSFX.buzzer) {
+      this.systemSFX.buzzer = new Howl({ 
+        src: [systemSFX.buzzer], 
+        volume: 0.5 * this.masterVolume.sfx 
+      });
+    }
+    if (systemSFX.lettersound) {
+      this.systemSFX.lettersound = new Howl({ 
+        src: [systemSFX.lettersound], 
+        volume: 0.15 * this.masterVolume.sfx
+      });
+    }
+    
+    this.isInitialized = true;
+  }
+
+  playSystemSFX(type, pitchVariation = 0) {
+    if (type === 'lettersound' && !this.letterSoundEnabled) return;
+    if (this.systemSFX[type]) {
+      const pitch = 1.0 + pitchVariation;
+      this.systemSFX[type].rate(pitch);
+      this.systemSFX[type].play();
+    }
   }
 
   setMasterVolume(channel, volume) {

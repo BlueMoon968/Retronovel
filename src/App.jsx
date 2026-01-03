@@ -61,6 +61,7 @@ const VNEditor = () => {
   const [choicePositions, setChoicePositions] = useState(null);
   const [backgroundOpacity, setBackgroundOpacity] = useState(1);
   const [animationTick, setAnimationTick] = useState(0);
+  const [isTyping, setIsTyping] = useState(false);
   
   const canvasRef = useRef(null);
   const msgBoxImageRef = useRef(null);
@@ -71,6 +72,9 @@ const VNEditor = () => {
   const animationFrameId = useRef(null);
   const currentFrames = useRef([0, 0, 0]);
   const isRenderingEditor = useRef(false);
+  const [displayedText, setDisplayedText] = useState('');
+  const typewriterSkipRef = useRef(null);
+  const typewriterTextRef = useRef('');
 
   // ===== FIX #1: Initialize missing characters arrays =====
   useEffect(() => {
@@ -221,6 +225,10 @@ const VNEditor = () => {
       }
     };
   }, [isPlaying, currentSceneIndex]);
+
+  useEffect(() => {
+    audioManager.initSystemSounds(project.settings.systemSFX);
+  }, [project.settings.systemSFX]);
 
   useEffect(() => {
     document.fonts.ready.then(() => setProject(p => ({...p})));
@@ -454,6 +462,60 @@ const VNEditor = () => {
     });
   };
 
+  // ===== TYPEWRITER EFFECT =====
+  useEffect(() => {
+    if (!isPlaying) {
+      setIsTyping(false);
+      setDisplayedText('');
+      return;
+    }
+    
+    const scene = project.scenes[currentSceneIndex];
+    const command = scene.commands[currentCommandIndex];
+    
+    if (command && command.type === 'dialogue') {
+      setIsTyping(true);
+      setDisplayedText('');
+      
+      let index = 0;
+      let soundCounter = 0; // ← Counter per lettersound
+      
+      const interval = setInterval(() => {
+        if (index < command.text.length) {
+          const char = command.text[index];
+          setDisplayedText(prev => prev + char);
+          
+          // Play letter sound every 2-3 characters (not spaces)
+          if (char !== ' ' && project.settings.letterSoundEnabled) {
+            soundCounter++;
+            if (soundCounter >= 2) { // ← Suona ogni 2 caratteri
+              const pitchVariation = (Math.random() - 0.5) * 0.2;
+              audioManager.playSystemSFX('lettersound', pitchVariation);
+              soundCounter = 0; // Reset counter
+            }
+          }
+          
+          index++;
+        } else {
+          clearInterval(interval);
+          setIsTyping(false);
+        }
+      }, 30); // 30ms per character
+      
+      // Store skip function
+      typewriterSkipRef.current = () => {
+        clearInterval(interval);
+        setDisplayedText(command.text);
+        setIsTyping(false);
+      };
+      
+      return () => clearInterval(interval);
+    } else {
+      setIsTyping(false);
+      setDisplayedText('');
+    }
+  }, [isPlaying, currentSceneIndex, currentCommandIndex, project.settings.letterSoundEnabled]);
+
   // ===== FIX #2: Main rendering useEffect - SYNC for EDITOR, ASYNC for PLAY =====
   // Main rendering useEffect - EDITOR + PLAY mode
     useEffect(() => {
@@ -567,7 +629,10 @@ const VNEditor = () => {
             }
             
             drawNameBox(ctx, nameBoxImageRef.current, command.speaker, boxX, boxY, fontFamily);
-            drawDialogueText(ctx, command.text, boxX, boxY, boxWidth, fontFamily);
+
+            // Use displayed text from typewriter effect
+            const textToRender = isTyping ? displayedText : command.text;
+            drawDialogueText(ctx, textToRender, boxX, boxY, boxWidth, fontFamily);
           }
           
           // Always draw scene indicator
@@ -684,33 +749,55 @@ const VNEditor = () => {
       };
 
       render();
-      
-    }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity, isPlaying, animationTick]);
 
-  const handleCanvasClick = (event) => {
-    if (!isPlaying || isTransitioning) return;
-    const scene = project.scenes[currentSceneIndex];
-    const command = scene.commands[currentCommandIndex];
-    if (command && command.type === 'dialogue' && choicePositions && choicePositions.length > 0) {
-      const canvas = canvasRef.current;
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      const x = (event.clientX - rect.left) * scaleX;
-      const y = (event.clientY - rect.top) * scaleY;
-      for (let pos of choicePositions) {
-        if (x >= pos.x && x <= pos.x + pos.width && y >= pos.y && y <= pos.y + pos.height) {
-          if (pos.choice.setFlag) {
-            setProject({ ...project, flags: project.flags.map(f => f.name === pos.choice.setFlag ? { ...f, value: pos.choice.setFlagValue !== false } : f) });
+    }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity, isPlaying, animationTick, displayedText]);
+
+    const handleCanvasClick = (event) => {
+      if (!isPlaying || isTransitioning) return;
+      
+      const scene = project.scenes[currentSceneIndex];
+      const command = scene.commands[currentCommandIndex];
+      
+      // Handle choices
+      if (command && command.type === 'dialogue' && choicePositions && choicePositions.length > 0) {
+        const canvas = canvasRef.current;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = (event.clientX - rect.left) * scaleX;
+        const y = (event.clientY - rect.top) * scaleY;
+        
+        for (let pos of choicePositions) {
+          if (x >= pos.x && x <= pos.x + pos.width && y >= pos.y && y <= pos.y + pos.height) {
+            // Play CONFIRM sound
+            audioManager.playSystemSFX('confirm');
+            
+            if (pos.choice.setFlag) {
+              setProject({ ...project, flags: project.flags.map(f => f.name === pos.choice.setFlag ? { ...f, value: pos.choice.setFlagValue !== false } : f) });
+            }
+            pos.choice.enableGoto !== false && pos.choice.goto !== undefined ? changeSceneWithTransition(pos.choice.goto, 0) : advanceCommand();
+            return;
           }
-          pos.choice.enableGoto !== false && pos.choice.goto !== undefined ? changeSceneWithTransition(pos.choice.goto, 0) : advanceCommand();
-          return;
         }
+        return;
       }
-      return;
-    }
-    command && command.type === 'dialogue' ? advanceCommand() : command && executeCommand(command);
-  };
+      
+      // Handle typewriter skip or advance
+      if (command && command.type === 'dialogue') {
+        if (isTyping) {
+          // Skip typewriter effect
+          if (typewriterSkipRef.current) {
+            typewriterSkipRef.current();
+          }
+        } else {
+          // Play CURSOR sound and advance
+          audioManager.playSystemSFX('cursor');
+          advanceCommand();
+        }
+      } else {
+        command && executeCommand(command);
+      }
+    };
 
   const addScene = () => setProject({ ...project, scenes: [...project.scenes, { id: project.scenes.length + 1, name: `Scene ${project.scenes.length + 1}`, background: "#2d5a3d", character: null, characterPosition: "center", backgroundImage: null, characterImage: null, commands: [{ id: Date.now(), type: "dialogue", speaker: "Narrator", text: "New dialogue...", choices: [] }] }] });
   const updateScene = (index, updates) => { const newScenes = [...project.scenes]; newScenes[index] = { ...newScenes[index], ...updates }; setProject({ ...project, scenes: newScenes }); };
