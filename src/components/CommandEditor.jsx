@@ -221,7 +221,7 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
                 <>
                   <input type="text" value={command.speaker} onChange={(e) => updateCommand(cmdIdx, { speaker: e.target.value })} placeholder="Speaker" style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', marginBottom: '6px', fontFamily: 'inherit' }} />
                   <textarea value={command.text} onChange={(e) => updateCommand(cmdIdx, { text: e.target.value })} placeholder="Dialogue text..." rows="3" style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', resize: 'vertical', fontFamily: 'inherit' }} />
-                  <ChoiceEditor dialogue={command} sceneIndex={sceneIndex} dialogueIndex={cmdIdx} updateDialogue={(_, __, field, value) => updateCommand(cmdIdx, { [field]: value })} totalScenes={totalScenes} flags={flags} />
+                  <ChoiceEditor dialogue={command} sceneIndex={sceneIndex} dialogueIndex={cmdIdx} updateDialogue={(_, __, field, value) => updateCommand(cmdIdx, { [field]: value })} totalScenes={totalScenes} flags={flags} variables={variables}/>
                 </>
               )}
 

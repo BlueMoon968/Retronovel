@@ -1,6 +1,9 @@
 import React from 'react';
 
-const ChoiceEditor = ({ dialogue, sceneIndex, dialogueIndex, updateDialogue, totalScenes, flags }) => {
+const ChoiceEditor = ({ dialogue, sceneIndex, dialogueIndex, updateDialogue, totalScenes, flags, variables }) => {
+
+  if (!variables) variables = [];
+
   const addChoice = () => {
     const newChoice = {
       id: Date.now(),
@@ -8,7 +11,10 @@ const ChoiceEditor = ({ dialogue, sceneIndex, dialogueIndex, updateDialogue, tot
       enableGoto: false,
       goto: Math.min(sceneIndex + 1, totalScenes - 1),
       setFlag: '',
-      setFlagValue: true
+      setFlagValue: true,
+      setVariable: '', 
+      setVariableValue: 0, 
+      setVariableOperation: 'set'
     };
     updateDialogue(sceneIndex, dialogueIndex, 'choices', [...(dialogue.choices || []), newChoice]);
   };
@@ -67,6 +73,43 @@ const ChoiceEditor = ({ dialogue, sceneIndex, dialogueIndex, updateDialogue, tot
                   <input type="checkbox" checked={choice.setFlagValue !== false} onChange={(e) => updateChoice(idx, 'setFlagValue', e.target.checked)} style={{ marginRight: '6px' }} />
                   Set to {choice.setFlagValue !== false ? 'TRUE' : 'FALSE'}
                 </label>
+              )}
+            </>
+          )}
+
+          {variables.length > 0 && (
+            <>
+              <label style={{ display: 'block', fontSize: '9px', color: '#888', marginBottom: '4px', marginTop: '8px' }}>Optional: Set variable on choice</label>
+              <select 
+                value={choice.setVariable || ''} 
+                onChange={(e) => updateChoice(idx, 'setVariable', e.target.value)} 
+                style={{ width: '100%', padding: '4px', background: '#0f0f1f', border: '1px solid #4a5568', color: '#fff', fontSize: '10px', marginBottom: '4px', fontFamily: 'inherit' }}
+              >
+                <option value="">-- No variable --</option>
+                {variables.map(variable => <option key={variable.id} value={variable.name}>{variable.name}</option>)}
+              </select>
+              
+              {choice.setVariable && (
+                <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                  <select 
+                    value={choice.setVariableOperation || 'set'} 
+                    onChange={(e) => updateChoice(idx, 'setVariableOperation', e.target.value)} 
+                    style={{ flex: 1, padding: '4px', background: '#0f0f1f', border: '1px solid #4a5568', color: '#fff', fontSize: '9px', fontFamily: 'inherit' }}
+                  >
+                    <option value="set">Set</option>
+                    <option value="add">Add</option>
+                    <option value="subtract">Sub</option>
+                  </select>
+                  
+                  <input 
+                    type="number" 
+                    min="0" 
+                    max="255" 
+                    value={choice.setVariableValue || 0} 
+                    onChange={(e) => updateChoice(idx, 'setVariableValue', Math.max(0, Math.min(255, parseInt(e.target.value) || 0)))} 
+                    style={{ width: '50px', padding: '4px', background: '#0f0f1f', border: '1px solid #4a5568', color: '#3498db', fontSize: '10px', fontFamily: 'inherit', textAlign: 'center' }} 
+                  />
+                </div>
               )}
             </>
           )}

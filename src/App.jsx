@@ -800,6 +800,31 @@ const VNEditor = () => {
             if (pos.choice.setFlag) {
               setProject({ ...project, flags: project.flags.map(f => f.name === pos.choice.setFlag ? { ...f, value: pos.choice.setFlagValue !== false } : f) });
             }
+
+            if (pos.choice.setVariable) {
+              setProject({ 
+                ...project, 
+                variables: project.variables.map(v => {
+                  if (v.name === pos.choice.setVariable) {
+                    let newValue = v.value;
+                    const op = pos.choice.setVariableOperation || 'set';
+                    const val = pos.choice.setVariableValue || 0;
+                    
+                    if (op === 'set') {
+                      newValue = val;
+                    } else if (op === 'add') {
+                      newValue = Math.min(255, v.value + val);
+                    } else if (op === 'subtract') {
+                      newValue = Math.max(0, v.value - val);
+                    }
+                    
+                    return { ...v, value: newValue };
+                  }
+                  return v;
+                })
+              });
+            }
+
             pos.choice.enableGoto !== false && pos.choice.goto !== undefined ? changeSceneWithTransition(pos.choice.goto, 0) : advanceCommand();
             return;
           }
