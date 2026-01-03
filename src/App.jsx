@@ -237,7 +237,51 @@ const VNEditor = () => {
   }, []);
 
   const executeCommand = async (command) => {
-    if (command.type === 'setFlag') {
+    if (command.type === 'branching') { // ← AGGIUNGI QUESTO BLOCCO
+      // Evaluate conditions in order
+      for (let condition of command.conditions) {
+        if (condition.type === 'else') {
+          // Execute else commands
+          for (let cmd of condition.commands || []) {
+            await executeCommand(cmd);
+          }
+          break;
+        }
+        
+        let conditionMet = false;
+        
+        if (condition.checkType === 'flag') {
+          const flag = project.flags.find(f => f.name === condition.flagName);
+          if (flag) {
+            const flagValue = flag.value;
+            if (condition.operator === '==') conditionMet = flagValue === condition.compareValue;
+            else if (condition.operator === '!=') conditionMet = flagValue !== condition.compareValue;
+          }
+        } else if (condition.checkType === 'variable') {
+          const variable = project.variables.find(v => v.name === condition.variableName);
+          if (variable) {
+            const varValue = variable.value;
+            const compareValue = condition.compareValue;
+            if (condition.operator === '==') conditionMet = varValue === compareValue;
+            else if (condition.operator === '!=') conditionMet = varValue !== compareValue;
+            else if (condition.operator === '>') conditionMet = varValue > compareValue;
+            else if (condition.operator === '<') conditionMet = varValue < compareValue;
+            else if (condition.operator === '>=') conditionMet = varValue >= compareValue;
+            else if (condition.operator === '<=') conditionMet = varValue <= compareValue;
+          }
+        }
+        
+        if (conditionMet) {
+          // Execute commands in this branch
+          for (let cmd of condition.commands || []) {
+            await executeCommand(cmd);
+          }
+          break; // Exit after first true condition
+        }
+      }
+      advanceCommand();
+    }
+    else if (command.type === 'setFlag') {
       setProject({ ...project, flags: project.flags.map(f => f.name === command.flagName ? { ...f, value: command.flagValue } : f) });
       advanceCommand();
     }

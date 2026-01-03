@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ChoiceEditor from './ChoiceEditor';
+import BranchingEditor from './BranchingEditor';
 
 const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flags, variables, audio, characters, backgrounds, onJumpToCommand }) => {
   const [showCommandMenu, setShowCommandMenu] = useState(false);
@@ -16,6 +17,7 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
   const commandCategories = {
     'Dialogues & Logic': [
       { type: 'dialogue', icon: '💬', label: 'Add Dialogue' },
+      { type: 'branching', icon: '🔀', label: 'Branching' },
       { type: 'setFlag', icon: '🚩', label: 'Set Flag' },
       { type: 'setVariable', icon: '🔢', label: 'Set Variable' },
       { type: 'goto', icon: '➡️', label: 'Goto Scene' },
@@ -43,6 +45,21 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
         newCommand.speaker = 'Narrator';
         newCommand.text = 'New dialogue...';
         newCommand.choices = [];
+        break;
+      case 'branching':
+        newCommand.label = '';
+        newCommand.conditions = [
+          {
+            id: Date.now(),
+            type: 'if',
+            checkType: 'flag',
+            flagName: flags.length > 0 ? flags[0].name : '',
+            variableName: variables.length > 0 ? variables[0].name : '',
+            operator: '==',
+            compareValue: true,
+            commands: []
+          }
+        ];
         break;
       case 'setFlag':
         newCommand.flagName = flags.length > 0 ? flags[0].name : '';
@@ -143,6 +160,7 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
 
   const getCommandLabel = (command) => {
     if (command.type === 'dialogue') return `${command.speaker}: ${command.text.substring(0, 30)}...`;
+    if (command.type === 'branching') return `Branch: ${command.label || 'Conditional'}`;
     if (command.type === 'setFlag') return `Set ${command.flagName} = ${command.flagValue}`;
     if (command.type === 'setVariable') return `Set ${command.variableName} ${command.operation} ${command.variableValue}`;
     if (command.type === 'goto') return `Goto Scene ${command.targetScene + 1}`;
@@ -224,7 +242,21 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
                   <ChoiceEditor dialogue={command} sceneIndex={sceneIndex} dialogueIndex={cmdIdx} updateDialogue={(_, __, field, value) => updateCommand(cmdIdx, { [field]: value })} totalScenes={totalScenes} flags={flags} variables={variables}/>
                 </>
               )}
-
+              {/* BRANCHING COMMAND */}
+              {command.type === 'branching' && (
+                <BranchingEditor 
+                  branching={command} 
+                  sceneIndex={sceneIndex} 
+                  commandIndex={cmdIdx} 
+                  updateBranching={(updated) => updateCommand(cmdIdx, updated)} 
+                  totalScenes={totalScenes} 
+                  flags={flags}
+                  variables={variables}
+                  audio={audio}
+                  characters={characters}
+                  backgrounds={backgrounds}
+                />
+              )}
               {/* SET FLAG COMMAND */}
               {command.type === 'setFlag' && (
                 <>
