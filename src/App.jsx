@@ -236,15 +236,17 @@ const VNEditor = () => {
     document.fonts.ready.then(() => setProject(p => ({...p})));
   }, []);
 
-  const executeCommand = async (command) => {
-    if (command.type === 'branching') { // ← AGGIUNGI QUESTO BLOCCO
+  const executeCommand = async (command, insideBranch = false) => {
+    if (command.type === 'branching') {
+      console.log('🔀 BRANCHING START');
+      
+      let commandsToInject = [];
+      
       // Evaluate conditions in order
       for (let condition of command.conditions) {
         if (condition.type === 'else') {
-          // Execute else commands
-          for (let cmd of condition.commands || []) {
-            await executeCommand(cmd);
-          }
+          console.log('✅ ELSE branch - will inject', condition.commands?.length || 0, 'commands');
+          commandsToInject = condition.commands || [];
           break;
         }
         
@@ -252,6 +254,8 @@ const VNEditor = () => {
         
         if (condition.checkType === 'flag') {
           const flag = project.flags.find(f => f.name === condition.flagName);
+          console.log('🚩 FLAG CHECK:', condition.flagName, '=', flag?.value, 'expected:', condition.compareValue);
+          
           if (flag) {
             const flagValue = flag.value;
             if (condition.operator === '==') conditionMet = flagValue === condition.compareValue;
@@ -259,6 +263,8 @@ const VNEditor = () => {
           }
         } else if (condition.checkType === 'variable') {
           const variable = project.variables.find(v => v.name === condition.variableName);
+          console.log('🔢 VARIABLE CHECK:', condition.variableName, '=', variable?.value, 'expected:', condition.compareValue);
+          
           if (variable) {
             const varValue = variable.value;
             const compareValue = condition.compareValue;
@@ -271,64 +277,125 @@ const VNEditor = () => {
           }
         }
         
+        console.log('❓ Condition met?', conditionMet);
+        
         if (conditionMet) {
-          // Execute commands in this branch
-          for (let cmd of condition.commands || []) {
-            await executeCommand(cmd);
-          }
-          break; // Exit after first true condition
+          console.log('🎯 TRUE branch - will inject', condition.commands?.length || 0, 'commands');
+          commandsToInject = condition.commands || [];
+          break;
         }
       }
-      advanceCommand();
+      
+      console.log('📦 Commands to inject:', commandsToInject);
+      
+      // INIETTA i comandi della branch nella scena DOPO il branching corrente
+      if (commandsToInject.length > 0) {
+        setProject(prevProject => {
+          const newScenes = [...prevProject.scenes];
+          const scene = { ...newScenes[currentSceneIndex] };
+          const commands = [...scene.commands];
+          
+          // Inserisci i comandi DOPO il branching corrente
+          const insertPosition = currentCommandIndex + 1;
+          commands.splice(insertPosition, 0, ...commandsToInject);
+          
+          console.log('💉 Injected', commandsToInject.length, 'commands at position', insertPosition);
+          
+          scene.commands = commands;
+          newScenes[currentSceneIndex] = scene;
+          
+          return { ...prevProject, scenes: newScenes };
+        });
+
+        // Aspetta che React aggiorni lo stato
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      
+      console.log('🔀 BRANCHING END - advancing');
+      
+      // Avanza sempre dopo il branching
+      if (!insideBranch) {
+        advanceCommand();
+      }
     }
     else if (command.type === 'setFlag') {
-      setProject({ ...project, flags: project.flags.map(f => f.name === command.flagName ? { ...f, value: command.flagValue } : f) });
-      advanceCommand();
+      console.log('🚩 SET FLAG:', command.flagName, '=', command.flagValue);
+      setProject(prevProject => ({
+        ...prevProject,
+        flags: prevProject.flags.map(f => 
+          f.name === command.flagName 
+            ? { ...f, value: command.flagValue } 
+            : f
+        )
+      }));
+      
+      // Solo avanza se NON siamo dentro una branch
+      if (!insideBranch) {
+        advanceCommand();
+      }
     }
-    else if (command.type === 'setVariable') { // ← AGGIUNGI
-      setProject({ 
-        ...project, 
-        variables: project.variables.map(v => {
-          if (v.name === command.variableName) {
-            let newValue = v.value;
-            if (command.operation === 'set') {
-              newValue = command.variableValue;
-            } else if (command.operation === 'add') {
-              newValue = Math.min(255, v.value + command.variableValue);
-            } else if (command.operation === 'subtract') {
-              newValue = Math.max(0, v.value - command.variableValue);
+    else if (command.type === 'setVariable') {
+      console.log('🔢 SET VARIABLE:', command.variableName, command.operation, command.variableValue);
+      setProject(prevProject => {
+        return {
+          ...prevProject,
+          variables: prevProject.variables.map(v => {
+            if (v.name === command.variableName) {
+              let newValue = v.value;
+              if (command.operation === 'set') newValue = command.variableValue;
+              else if (command.operation === 'add') newValue = Math.min(255, v.value + command.variableValue);
+              else if (command.operation === 'subtract') newValue = Math.max(0, v.value - command.variableValue);
+              return { ...v, value: newValue };
             }
-            return { ...v, value: newValue };
-          }
-          return v;
-        })
+            return v;
+          })
+        };
       });
-      advanceCommand();
+      
+      // Solo avanza se NON siamo dentro una branch
+      if (!insideBranch) {
+        advanceCommand();
+      }
     }
     else if (command.type === 'goto') {
-      command.useTransition ? changeSceneWithTransition(command.targetScene, 0) : (setCurrentSceneIndex(command.targetScene), setCurrentCommandIndex(0));
-    } else if (command.type === 'playBGM') {
+      console.log('➡️ GOTO scene:', command.targetScene);
+      if (command.useTransition) {
+        changeSceneWithTransition(command.targetScene, 0);
+      } else {
+        setCurrentSceneIndex(command.targetScene);
+        setCurrentCommandIndex(0);
+      }
+      // goto NON chiama advanceCommand perché cambia scena
+    }
+    else if (command.type === 'playBGM') {
       if (command.audioFile) audioManager.playBGM(command.audioFile, command.volume / 100, command.pitch / 100, command.loop);
-      advanceCommand();
-    } else if (command.type === 'stopBGM') {
+      if (!insideBranch) advanceCommand();
+    }
+    else if (command.type === 'stopBGM') {
       audioManager.stopBGM();
-      advanceCommand();
-    } else if (command.type === 'fadeBGM') {
+      if (!insideBranch) advanceCommand();
+    }
+    else if (command.type === 'fadeBGM') {
       audioManager.fadeBGM(command.duration, command.targetVolume / 100);
-      advanceCommand();
-    } else if (command.type === 'playBGS') {
+      if (!insideBranch) advanceCommand();
+    }
+    else if (command.type === 'playBGS') {
       if (command.audioFile) audioManager.playBGS(command.audioFile, command.volume / 100, command.pitch / 100, command.loop);
-      advanceCommand();
-    } else if (command.type === 'stopBGS') {
+      if (!insideBranch) advanceCommand();
+    }
+    else if (command.type === 'stopBGS') {
       audioManager.stopBGS();
-      advanceCommand();
-    } else if (command.type === 'fadeBGS') {
+      if (!insideBranch) advanceCommand();
+    }
+    else if (command.type === 'fadeBGS') {
       audioManager.fadeBGS(command.duration, command.targetVolume / 100);
-      advanceCommand();
-    } else if (command.type === 'playSFX') {
+      if (!insideBranch) advanceCommand();
+    }
+    else if (command.type === 'playSFX') {
       if (command.audioFile) audioManager.playSFX(command.audioFile, command.volume / 100, command.pitch / 100, command.pan / 100);
-      advanceCommand();
-    } else if (command.type === 'showCharacter') {
+      if (!insideBranch) advanceCommand();
+    }
+    else if (command.type === 'showCharacter') {
       const scene = project.scenes[currentSceneIndex];
       const chars = [...(scene.characters || [
         { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
@@ -349,12 +416,12 @@ const VNEditor = () => {
       updateScene(currentSceneIndex, { characters: chars });
       
       if (command.faded) {
-        await new Promise(resolve => setTimeout(resolve, 50));
         await fadeCharacter(command.charIndex, 1, command.fadeDuration);
       }
       
-      advanceCommand();
-    } else if (command.type === 'hideCharacter') {
+      if (!insideBranch) advanceCommand();
+    }
+    else if (command.type === 'hideCharacter') {
       if (command.faded) {
         await fadeCharacter(command.charIndex, 0, command.fadeDuration);
       }
@@ -364,8 +431,9 @@ const VNEditor = () => {
       chars[command.charIndex] = { ...chars[command.charIndex], visible: false, opacity: 1 };
       
       updateScene(currentSceneIndex, { characters: chars });
-      advanceCommand();
-    } else if (command.type === 'showBackground') {
+      if (!insideBranch) advanceCommand();
+    }
+    else if (command.type === 'showBackground') {
       if (command.faded) {
         await fadeBackground(0, command.fadeDuration);
       }
@@ -378,16 +446,19 @@ const VNEditor = () => {
       if (command.faded) {
         await fadeBackground(1, command.fadeDuration);
       }
-      advanceCommand();
-    } else if (command.type === 'hideBackground') {
+      if (!insideBranch) advanceCommand();
+    }
+    else if (command.type === 'hideBackground') {
       if (command.faded) {
         await fadeBackground(0, command.fadeDuration);
       }
       
       updateScene(currentSceneIndex, { backgroundVisible: false });
       setBackgroundOpacity(1);
-      advanceCommand();
+      if (!insideBranch) advanceCommand();
     }
+    
+    // I dialoghi NON chiamano MAI advanceCommand (aspettano il click)
   };
 
   const advanceCommand = () => {
@@ -696,17 +767,25 @@ const VNEditor = () => {
             }
             
             drawNameBox(ctx, nameBoxImageRef.current, command.speaker, boxX, boxY, fontFamily);
-
-            // Use displayed text from typewriter effect
-            const textToRender = isTyping ? displayedText : command.text;
-            drawDialogueText(ctx, textToRender, boxX, boxY, boxWidth, fontFamily);
+            drawDialogueText(ctx, command.text, boxX, boxY, boxWidth, fontFamily);
+            
+            // ← AGGIUNGI RENDERING CHOICES IN EDITOR
+            if (command.choices && command.choices.length > 0) {
+              drawChoices(ctx, command, width, height, fontFamily);
+            }
+            
+            // Arrow solo se NON ci sono choices
+            if (!command.choices || command.choices.length === 0) {
+              const hasMore = currentCommandIndex < scene.commands.length - 1 || currentSceneIndex < project.scenes.length - 1;
+              drawArrow(ctx, boxX, boxY, boxWidth, boxHeight, hasMore);
+            }
           }
           
           // Always draw scene indicator
           drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
           isRenderingEditor.current = false;
         }
-        
+                
         return; // Exit early for EDITOR mode
       }
 
@@ -806,20 +885,20 @@ const VNEditor = () => {
         const textToRender = isTyping ? displayedText : command.text;
         drawDialogueText(ctx, textToRender, boxX, boxY, boxWidth, fontFamily);
         
-        const positions = drawChoices(ctx, command, width, height, fontFamily);
+        // Choices solo se typewriter completato
+        const positions = !isTyping ? drawChoices(ctx, command, width, height, fontFamily) : null;
         setChoicePositions(positions);
-        
+
         if (!command.choices || command.choices.length === 0) {
           const hasMore = currentCommandIndex < scene.commands.length - 1 || currentSceneIndex < project.scenes.length - 1;
           drawArrow(ctx, boxX, boxY, boxWidth, boxHeight, hasMore);
         }
-        
         drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, fontFamily);
       };
 
       render();
 
-    }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity, isPlaying, animationTick, displayedText]);
+    }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity, isPlaying, animationTick, displayedText, isTyping]);
 
     const handleCanvasClick = (event) => {
       if (!isPlaying || isTransitioning) return;
