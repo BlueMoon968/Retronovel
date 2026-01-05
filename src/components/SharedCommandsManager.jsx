@@ -261,6 +261,8 @@ const SharedCommandsManager = ({
                   characters={characters}
                   backgrounds={backgrounds}
                   sharedCommands={sharedCommands}
+                collapsedCommands={{}}
+                setCollapsedCommands={() => {}}
                 />
               </div>
             </>

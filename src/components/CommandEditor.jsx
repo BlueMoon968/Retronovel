@@ -2,10 +2,9 @@ import React, { useState, useRef } from 'react';
 import ChoiceEditor from './ChoiceEditor';
 import BranchingEditor from './BranchingEditor';
 
-const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flags, variables, audio, characters, backgrounds, sharedCommands, onJumpToCommand }) => {
+const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flags, variables, audio, characters, backgrounds, sharedCommands, collapsedCommands, setCollapsedCommands, onJumpToCommand }) => {
   const [showCommandMenu, setShowCommandMenu] = useState(false);
   const [, forceUpdate] = useState(0);
-  const collapsedCommands = useRef({});
 
   if (!audio) {
     audio = { bgm: [], bgs: [], sfx: [] };
@@ -153,11 +152,10 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
   };
 
   const toggleCollapse = (index) => {
-    collapsedCommands.current = {
-      ...collapsedCommands.current,
-      [index]: !collapsedCommands.current[index]
-    };
-    forceUpdate(prev => prev + 1);
+    setCollapsedCommands({
+      ...collapsedCommands,
+      [index]: !collapsedCommands[index]
+    });
   };
 
   const getCommandIcon = (type) => {
@@ -219,16 +217,16 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
       {/* Command list */}
       {commands.map((command, cmdIdx) => (
         <div key={command.id} style={{ padding: '6px', background: '#2a2a3e', border: '1px solid #4a5568', marginBottom: '8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: collapsedCommands.current[cmdIdx] ? '0' : '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: collapsedCommands[cmdIdx] ? '0' : '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, cursor: 'pointer' }} onClick={() => onJumpToCommand && onJumpToCommand(cmdIdx)}>
               <button onClick={(e) => {
                 e.stopPropagation()
                 toggleCollapse(cmdIdx)
               }} style={{ padding: '4px 8px', background: '#1a1a2e', color: '#fff', border: '1px solid #4a5568', cursor: 'pointer', fontSize: '10px', fontFamily: 'inherit' }}>
-                {collapsedCommands.current[cmdIdx] ? '▶' : '▼'}
+                {collapsedCommands[cmdIdx] ? '▶' : '▼'}
               </button>
               <span style={{ fontSize: '11px', color: '#f39c12' }}>
-                {getCommandIcon(command.type)} {collapsedCommands.current[cmdIdx] ? getCommandLabel(command) : `#${cmdIdx + 1}`}
+                {getCommandIcon(command.type)} {collapsedCommands[cmdIdx] ? getCommandLabel(command) : `#${cmdIdx + 1}`}
               </span>
             </div>
             <div style={{ display: 'flex', gap: '4px' }}>
@@ -242,7 +240,7 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
             </div>
           </div>
 
-          {!collapsedCommands.current[cmdIdx] && (
+          {!collapsedCommands[cmdIdx] && (
             <>
               {/* DIALOGUE COMMAND */}
               {command.type === 'dialogue' && (
@@ -266,6 +264,8 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
                   characters={characters}
                   backgrounds={backgrounds}
                   sharedCommands={sharedCommands}
+                  collapsedCommands={collapsedCommands}
+                  setCollapsedCommands={setCollapsedCommands}
                 />
               )}
               {/* SET FLAG COMMAND */}

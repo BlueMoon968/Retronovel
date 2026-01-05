@@ -68,6 +68,7 @@ const VNEditor = () => {
   const [backgroundOpacity, setBackgroundOpacity] = useState(1);
   const [animationTick, setAnimationTick] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
+  const [collapsedCommands, setCollapsedCommands] = useState({});
   
   const canvasRef = useRef(null);
   const msgBoxImageRef = useRef(null);
@@ -172,7 +173,11 @@ const VNEditor = () => {
       
       if (initialSceneState.current) {
         updateScene(currentSceneIndex, {
-          characters: initialSceneState.current.characters,
+          characters: [
+            { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+            { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+            { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
+          ],
           backgroundImage: initialSceneState.current.backgroundImage,
           backgroundVisible: initialSceneState.current.backgroundVisible
         });
@@ -239,6 +244,55 @@ const VNEditor = () => {
   useEffect(() => {
     document.fonts.ready.then(() => setProject(p => ({...p})));
   }, []);
+
+  // Helper: Calculate character visibility state up to current command (for EDITOR preview)
+  const getCharactersStateAtCommand = (sceneIndex, commandIndex) => {
+    const scene = project.scenes[sceneIndex];
+    if (!scene) return [
+      { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+      { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+      { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
+    ];
+    
+    // ← MODIFICA: Start completely empty - no templates
+    let currentChars = [
+      { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+      { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+      { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
+    ];
+    
+    // Simulate commands up to currentCommandIndex
+    for (let i = 0; i <= commandIndex && i < scene.commands.length; i++) {
+      const cmd = scene.commands[i];
+      
+      if (cmd.type === 'showCharacter') {
+        // ← MODIFICA: showCharacter MUST have a sprite defined
+        if (!cmd.sprite) {
+          console.warn('⚠️ showCharacter at command', i, 'has no sprite!');
+          continue;
+        }
+        
+        currentChars[cmd.charIndex] = {
+          sprite: cmd.sprite,
+          position: cmd.position,
+          visible: true,
+          animated: cmd.animated,
+          frames: cmd.frames || 1,
+          frameSpeed: cmd.frameSpeed || 100,
+          opacity: 1 // In editor always show full opacity
+        };
+      } else if (cmd.type === 'hideCharacter') {
+        if (currentChars[cmd.charIndex]) {
+          currentChars[cmd.charIndex] = {
+            ...currentChars[cmd.charIndex],
+            visible: false
+          };
+        }
+      }
+    }
+    
+    return currentChars;
+  };
 
   const executeCommand = async (command, insideBranch = false) => {
     if (command.type === 'branching') {
@@ -416,6 +470,15 @@ const VNEditor = () => {
         { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
       ])];
       
+      if (!command.sprite) {
+        console.error('❌ showCharacter: No sprite specified for slot', command.charIndex);
+        if (!insideBranch) advanceCommand();
+        return;
+      }
+      
+      // ← MODIFICA: Determina startOpacity PRIMA di updateScene
+      const startOpacity = command.faded ? 0 : 1;
+      
       chars[command.charIndex] = {
         sprite: command.sprite,
         position: command.position,
@@ -423,25 +486,25 @@ const VNEditor = () => {
         animated: command.animated,
         frames: command.frames || 1,
         frameSpeed: command.frameSpeed || 100,
-        opacity: command.faded ? 0 : 1
+        opacity: startOpacity
       };
       
       updateScene(currentSceneIndex, { characters: chars });
       
+      // ← MODIFICA: Passa startOpacity esplicitamente
       if (command.faded) {
-        await fadeCharacter(command.charIndex, 1, command.fadeDuration);
+        await fadeCharacter(command.charIndex, startOpacity, 1, command.fadeDuration);
       }
       
       if (!insideBranch) advanceCommand();
     }
     else if (command.type === 'hideCharacter') {
-      if (command.faded) {
-        await fadeCharacter(command.charIndex, 0, command.fadeDuration);
-      }
-      
       const scene = project.scenes[currentSceneIndex];
-      const chars = [...scene.characters];
-      chars[command.charIndex] = { ...chars[command.charIndex], visible: false, opacity: 1 };
+      const currentOpacity = scene.characters?.[command.charIndex]?.opacity || 1;
+      
+      if (command.faded) {
+        await fadeCharacter(command.charIndex, currentOpacity, 0, command.fadeDuration);
+      }
       
       updateScene(currentSceneIndex, { characters: chars });
       if (!insideBranch) advanceCommand();
@@ -516,17 +579,27 @@ const VNEditor = () => {
     // I dialoghi NON chiamano MAI advanceCommand (aspettano il click)
   };
 
-  const advanceCommand = () => {
+const advanceCommand = () => {
     const scene = project.scenes[currentSceneIndex];
     if (currentCommandIndex < scene.commands.length - 1) {
       const nextIndex = currentCommandIndex + 1;
       setCurrentCommandIndex(nextIndex);
-    } else if (currentSceneIndex < project.scenes.length - 1) {
-      changeSceneWithTransition(currentSceneIndex + 1, 0);
+    } else {
+      // ← MODIFICA: Fine scena, stop
+      setIsPlaying(false);
     }
   };
 
   const changeSceneWithTransition = (newSceneIndex, newCommandIndex = 0) => {
+
+    updateScene(currentSceneIndex, {
+      characters: [
+        { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+        { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+        { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
+      ]
+    });
+
     if (!transitionImageRef.current || !canvasRef.current) {
       setCurrentSceneIndex(newSceneIndex);
       setCurrentCommandIndex(newCommandIndex);
@@ -595,45 +668,49 @@ const VNEditor = () => {
     requestAnimationFrame(animate);
   };
 
-  const fadeCharacter = (charIndex, targetOpacity, duration) => {
+  const fadeCharacter = (charIndex, startOpacity, targetOpacity, duration) => {
     return new Promise(resolve => {
-      const scene = project.scenes[currentSceneIndex];
-      const startOpacity = scene.characters[charIndex].opacity || 0;
       const startTime = Date.now();
-      let animationFrame;
+      
+      console.log('🎭 Fade character', charIndex, 'from', startOpacity, 'to', targetOpacity, 'in', duration, 'ms');
       
       const animate = () => {
-        const currentScene = project.scenes[currentSceneIndex];
-        if (!currentScene || !currentScene.characters || !currentScene.characters[charIndex]) {
-          resolve();
-          return;
-        }
-        
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / duration, 1);
         const currentOpacity = startOpacity + (targetOpacity - startOpacity) * progress;
         
+        console.log('  ⏱️ Progress:', Math.round(progress * 100) + '%', 'Opacity:', currentOpacity.toFixed(2));
+        
         setProject(prev => {
           const newScenes = [...prev.scenes];
           const scene = { ...newScenes[currentSceneIndex] };
-          const chars = [...scene.characters];
-          chars[charIndex] = { ...chars[charIndex], opacity: currentOpacity };
+          const chars = scene.characters ? [...scene.characters] : [
+            { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+            { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+            { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
+          ];
+          
+          if (chars[charIndex]) {
+            chars[charIndex] = { ...chars[charIndex], opacity: currentOpacity };
+          }
+          
           scene.characters = chars;
           newScenes[currentSceneIndex] = scene;
           return { ...prev, scenes: newScenes };
         });
         
-        // ← AGGIUNGI: Force animation tick per re-render
+        // Force re-render
         setAnimationTick(prev => prev + 1);
         
         if (progress < 1) {
-          animationFrame = requestAnimationFrame(animate);
+          requestAnimationFrame(animate);
         } else {
+          console.log('✅ Fade complete for character', charIndex);
           resolve();
         }
       };
       
-      animate();
+      requestAnimationFrame(animate);
     });
   };
 
@@ -779,9 +856,11 @@ const VNEditor = () => {
         }
 
         function drawCharacterAndUI() {
-          // ← MODIFICA: Draw ALL 3 character slots
+          // ← MODIFICA: Get characters that SHOULD be visible at current command
+          const visibleChars = getCharactersStateAtCommand(currentSceneIndex, currentCommandIndex);
+          
           let loadedCharacters = 0;
-          const totalCharacters = scene.characters.filter(c => c.visible && c.sprite).length;
+          const totalCharacters = visibleChars.filter(c => c.visible && c.sprite).length;
           
           if (totalCharacters === 0) {
             drawEditorUI();
@@ -789,12 +868,8 @@ const VNEditor = () => {
           }
           
           // Load all visible characters
-          scene.characters.forEach((char, idx) => {
+          visibleChars.forEach((char, idx) => {
             if (!char.visible || !char.sprite) {
-              loadedCharacters++;
-              if (loadedCharacters === totalCharacters || totalCharacters === 0) {
-                drawEditorUI();
-              }
               return;
             }
             
@@ -812,7 +887,7 @@ const VNEditor = () => {
               const charY = Math.floor(height - charImg.height);
               
               ctx.imageSmoothingEnabled = false;
-              ctx.globalAlpha = char.opacity || 1;
+              ctx.globalAlpha = 1; // Always full opacity in editor
               ctx.drawImage(charImg, 0, 0, sourceWidth, charImg.height, charX, charY, sourceWidth, charImg.height);
               ctx.globalAlpha = 1;
               
@@ -928,7 +1003,7 @@ const VNEditor = () => {
           offCtx.webkitImageSmoothingEnabled = false;
           offCtx.msImageSmoothingEnabled = false;
           
-          offCtx.globalAlpha = char.opacity || 1;
+          offCtx.globalAlpha = char.opacity !== undefined ? char.opacity : 1;
           offCtx.drawImage(img, Math.floor(sourceX), 0, Math.floor(sourceWidth), img.height, charX, charY, sourceWidth, img.height);
           offCtx.globalAlpha = 1;
         });
@@ -1168,40 +1243,22 @@ const VNEditor = () => {
                 <option value="">None (use color)</option>
                 {project.backgrounds.map(bg => <option key={bg.id} value={bg.data}>{bg.name}</option>)}
               </select>
-
-              <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px' }}>Initial Character Sprite:</label>
-              <select value={scene.characters?.[0]?.sprite || ''} onChange={(e) => { const chars = scene.characters || [{ sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }, { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }, { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }]; chars[0] = { ...chars[0], sprite: e.target.value || null, visible: !!e.target.value }; updateScene(currentSceneIndex, { characters: chars }); }} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '12px' }}>
-                <option value="">None</option>
-                {project.characters.map(char => <option key={char.id} value={char.data}>{char.name}</option>)}
-              </select>
-              
-              {scene.characters?.[0]?.sprite && (
-                <>
-                  <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px' }}>Character Position:</label>
-                  <select value={scene.characters[0].position} onChange={(e) => { const chars = [...scene.characters]; chars[0] = { ...chars[0], position: e.target.value }; updateScene(currentSceneIndex, { characters: chars }); }} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '12px' }}>
-                    <option value="left">Left</option>
-                    <option value="center">Center</option>
-                    <option value="right">Right</option>
-                  </select>
-                  
-                  <label style={{ display: 'flex', alignItems: 'center', fontSize: '11px', marginBottom: '8px' }}>
-                    <input type="checkbox" checked={scene.characters[0].animated || false} onChange={(e) => { const chars = [...scene.characters]; chars[0] = { ...chars[0], animated: e.target.checked }; updateScene(currentSceneIndex, { characters: chars }); }} style={{ marginRight: '8px' }} />
-                    Animated Character
-                  </label>
-                  
-                  {scene.characters[0].animated && (
-                    <>
-                      <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px' }}>Frames:</label>
-                      <input type="number" min="1" max="20" value={scene.characters[0].frames || 1} onChange={(e) => { const chars = [...scene.characters]; chars[0] = { ...chars[0], frames: parseInt(e.target.value) }; updateScene(currentSceneIndex, { characters: chars }); }} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '8px' }} />
-                      
-                      <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px' }}>Frame Speed (ms):</label>
-                      <input type="number" min="50" max="1000" step="50" value={scene.characters[0].frameSpeed || 100} onChange={(e) => { const chars = [...scene.characters]; chars[0] = { ...chars[0], frameSpeed: parseInt(e.target.value) }; updateScene(currentSceneIndex, { characters: chars }); }} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit' }} />
-                    </>
-                  )}
-                </>
-              )}
             </div>
-            <CommandEditor commands={scene.commands} sceneIndex={currentSceneIndex} updateCommands={(cmds) => updateScene(currentSceneIndex, { commands: cmds })} totalScenes={project.scenes.length} flags={project.flags} audio={project.audio} sharedCommands={project.sharedCommands} onJumpToCommand={(index) => setCurrentCommandIndex(index)} characters={project.characters} backgrounds={project.backgrounds} variables={project.variables}/>
+            <CommandEditor 
+              commands={scene.commands} 
+              sceneIndex={currentSceneIndex} 
+              updateCommands={(cmds) => updateScene(currentSceneIndex, { commands: cmds })} 
+              totalScenes={project.scenes.length} 
+              flags={project.flags} 
+              audio={project.audio} 
+              sharedCommands={project.sharedCommands} 
+              onJumpToCommand={(index) => setCurrentCommandIndex(index)} 
+              characters={project.characters} 
+              backgrounds={project.backgrounds} 
+              variables={project.variables}
+              collapsedCommands={collapsedCommands}
+              setCollapsedCommands={setCollapsedCommands}
+            />
           </div>
         )}
 
@@ -1705,12 +1762,19 @@ const VNEditor = () => {
         <button
           onClick={() => {
             if (!isPlaying) {
-              // Pulisci tutti i comandi iniettati
-              console.log('🧹 Cleaning injected commands from previous playthrough');
+              // ← AGGIUNGI: Reset characters in TUTTE le scene prima di play
+              console.log('🧹 Resetting ALL scene characters before play');
               setProject(prevProject => {
                 const cleanedScenes = prevProject.scenes.map(scene => ({
                   ...scene,
-                  commands: scene.commands.filter(cmd => !cmd._injected)
+                  // Remove injected commands
+                  commands: scene.commands.filter(cmd => !cmd._injected),
+                  // Reset characters
+                  characters: [
+                    { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+                    { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+                    { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
+                  ]
                 }));
                 
                 const injectedCount = prevProject.scenes.reduce((sum, scene) => 
@@ -1724,19 +1788,14 @@ const VNEditor = () => {
                 return { ...prevProject, scenes: cleanedScenes };
               });
               
-              // ← MODIFICA: Salva TUTTI E 3 i character slots
+              // Salva stato iniziale background (non characters)
               const scene = project.scenes[currentSceneIndex];
               initialSceneState.current = {
-                characters: scene.characters ? JSON.parse(JSON.stringify(scene.characters)) : [
-                  { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
-                  { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
-                  { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
-                ],
                 backgroundImage: scene.backgroundImage,
                 backgroundVisible: scene.backgroundVisible
               };
               
-              console.log('💾 Saved initial state for all 3 character slots');
+              console.log('▶️ Play started');
             }
             setIsPlaying(!isPlaying);
             if (!isPlaying) {
