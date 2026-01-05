@@ -12,7 +12,7 @@ import { audioManager } from './engine/audioEngine';
 
 const VNEditor = () => {
   const [project, setProject] = useState({
-    title: "My Visual Novel",
+    title: "My Retronovel",
     resolution: [256, 192],
     flags: [],
     variables: [],
@@ -44,7 +44,7 @@ const VNEditor = () => {
             id: Date.now(),
             type: 'dialogue',
             speaker: "Narrator",
-            text: "Welcome to the Visual Novel Editor!",
+            text: "Welcome to Retronovel Editor!",
             choices: []
           }
         ]
@@ -597,28 +597,34 @@ const VNEditor = () => {
 
   const fadeCharacter = (charIndex, targetOpacity, duration) => {
     return new Promise(resolve => {
+      const scene = project.scenes[currentSceneIndex];
+      const startOpacity = scene.characters[charIndex].opacity || 0;
       const startTime = Date.now();
       let animationFrame;
       
       const animate = () => {
-        const scene = project.scenes[currentSceneIndex];
-        if (!scene || !scene.characters || !scene.characters[charIndex]) {
+        const currentScene = project.scenes[currentSceneIndex];
+        if (!currentScene || !currentScene.characters || !currentScene.characters[charIndex]) {
           resolve();
           return;
         }
         
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / duration, 1);
-        const startOpacity = scene.characters[charIndex].opacity || 0;
         const currentOpacity = startOpacity + (targetOpacity - startOpacity) * progress;
         
         setProject(prev => {
           const newScenes = [...prev.scenes];
-          const newChars = [...newScenes[currentSceneIndex].characters];
-          newChars[charIndex] = { ...newChars[charIndex], opacity: currentOpacity };
-          newScenes[currentSceneIndex] = { ...newScenes[currentSceneIndex], characters: newChars };
+          const scene = { ...newScenes[currentSceneIndex] };
+          const chars = [...scene.characters];
+          chars[charIndex] = { ...chars[charIndex], opacity: currentOpacity };
+          scene.characters = chars;
+          newScenes[currentSceneIndex] = scene;
           return { ...prev, scenes: newScenes };
         });
+        
+        // ← AGGIUNGI: Force animation tick per re-render
+        setAnimationTick(prev => prev + 1);
         
         if (progress < 1) {
           animationFrame = requestAnimationFrame(animate);
@@ -773,35 +779,56 @@ const VNEditor = () => {
         }
 
         function drawCharacterAndUI() {
-          // Draw character if exists
-          if (scene.characters[0] && scene.characters[0].sprite) {
+          // ← MODIFICA: Draw ALL 3 character slots
+          let loadedCharacters = 0;
+          const totalCharacters = scene.characters.filter(c => c.visible && c.sprite).length;
+          
+          if (totalCharacters === 0) {
+            drawEditorUI();
+            return;
+          }
+          
+          // Load all visible characters
+          scene.characters.forEach((char, idx) => {
+            if (!char.visible || !char.sprite) {
+              loadedCharacters++;
+              if (loadedCharacters === totalCharacters || totalCharacters === 0) {
+                drawEditorUI();
+              }
+              return;
+            }
+            
             const charImg = new Image();
             charImg.onload = () => {
               let sourceWidth = charImg.width;
-              if (scene.characters[0].animated && scene.characters[0].frames > 1) {
-                sourceWidth = charImg.width / scene.characters[0].frames;
+              if (char.animated && char.frames > 1) {
+                sourceWidth = charImg.width / char.frames;
               }
               
               let charX = Math.floor((width - sourceWidth) / 2);
-              if (scene.characters[0].position === 'left') charX = 0;
-              if (scene.characters[0].position === 'right') charX = width - sourceWidth;
+              if (char.position === 'left') charX = 0;
+              if (char.position === 'right') charX = width - sourceWidth;
               
               const charY = Math.floor(height - charImg.height);
               
               ctx.imageSmoothingEnabled = false;
+              ctx.globalAlpha = char.opacity || 1;
               ctx.drawImage(charImg, 0, 0, sourceWidth, charImg.height, charX, charY, sourceWidth, charImg.height);
+              ctx.globalAlpha = 1;
               
-              // Draw UI after character
-              drawEditorUI();
+              loadedCharacters++;
+              if (loadedCharacters === totalCharacters) {
+                drawEditorUI();
+              }
             };
             charImg.onerror = () => {
-              drawEditorUI();
+              loadedCharacters++;
+              if (loadedCharacters === totalCharacters) {
+                drawEditorUI();
+              }
             };
-            charImg.src = scene.characters[0].sprite;
-          } else {
-            // No character, draw UI directly
-            drawEditorUI();
-          }
+            charImg.src = char.sprite;
+          });
         }
 
         function drawEditorUI() {
@@ -821,19 +848,14 @@ const VNEditor = () => {
               ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
             }
             
-            drawNameBox(ctx, nameBoxImageRef.current, command.speaker, boxX, boxY, fontFamily);
-            drawDialogueText(ctx, command.text, boxX, boxY, boxWidth, fontFamily);
-            
-            // ← AGGIUNGI RENDERING CHOICES IN EDITOR
-            if (command.choices && command.choices.length > 0) {
-              drawChoices(ctx, command, width, height, fontFamily);
+            // ← MODIFICA: Draw namebox SOLO se speaker non è vuoto
+            if (command.speaker && command.speaker.trim() !== '') {
+              drawNameBox(ctx, nameBoxImageRef.current, command.speaker, boxX, boxY, fontFamily);
             }
-            
-            // Arrow solo se NON ci sono choices
-            if (!command.choices || command.choices.length === 0) {
-              const hasMore = currentCommandIndex < scene.commands.length - 1 || currentSceneIndex < project.scenes.length - 1;
-              drawArrow(ctx, boxX, boxY, boxWidth, boxHeight, hasMore);
-            }
+
+            // Use displayed text from typewriter effect
+            const textToRender = isTyping ? displayedText : command.text;
+            drawDialogueText(ctx, textToRender, boxX, boxY, boxWidth, fontFamily);
           }
           
           // Always draw scene indicator
@@ -935,7 +957,9 @@ const VNEditor = () => {
           ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
         }
         
-        drawNameBox(ctx, nameBoxImageRef.current, command.speaker, boxX, boxY, fontFamily);
+        if (command.speaker && command.speaker.trim() !== '') {
+          drawNameBox(ctx, nameBoxImageRef.current, command.speaker, boxX, boxY, fontFamily);
+        }
         // Use displayed text from typewriter effect
         const textToRender = isTyping ? displayedText : command.text;
         drawDialogueText(ctx, textToRender, boxX, boxY, boxWidth, fontFamily);
@@ -1681,7 +1705,7 @@ const VNEditor = () => {
         <button
           onClick={() => {
             if (!isPlaying) {
-              // ← PULISCI tutti i comandi iniettati da playthrough precedenti
+              // Pulisci tutti i comandi iniettati
               console.log('🧹 Cleaning injected commands from previous playthrough');
               setProject(prevProject => {
                 const cleanedScenes = prevProject.scenes.map(scene => ({
@@ -1700,15 +1724,19 @@ const VNEditor = () => {
                 return { ...prevProject, scenes: cleanedScenes };
               });
               
-              // Salva stato iniziale della scena corrente
+              // ← MODIFICA: Salva TUTTI E 3 i character slots
               const scene = project.scenes[currentSceneIndex];
               initialSceneState.current = {
-                characters: scene.characters ? JSON.parse(JSON.stringify(scene.characters)) : null,
+                characters: scene.characters ? JSON.parse(JSON.stringify(scene.characters)) : [
+                  { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+                  { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 },
+                  { sprite: null, position: 'center', visible: false, animated: false, frames: 1, frameSpeed: 100, opacity: 1 }
+                ],
                 backgroundImage: scene.backgroundImage,
                 backgroundVisible: scene.backgroundVisible
               };
               
-              console.log('▶️ Play started');
+              console.log('💾 Saved initial state for all 3 character slots');
             }
             setIsPlaying(!isPlaying);
             if (!isPlaying) {
