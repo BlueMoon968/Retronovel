@@ -464,55 +464,53 @@ const VNEditor = () => {
     else if (command.type === 'hideBackground') {
       if (command.faded) {
         await fadeBackground(0, command.fadeDuration);
-      }
-      else if (command.type === 'callSharedCommand') {
-        // ← AGGIUNGI QUESTO BLOCCO
-        console.log('📞 CALL SHARED COMMAND:', command.sharedCommandId);
-        
-        const sharedCmd = project.sharedCommands.find(sc => sc.id === command.sharedCommandId);
-        
-        if (sharedCmd && sharedCmd.commands && sharedCmd.commands.length > 0) {
-          console.log('📦 Found shared command:', sharedCmd.name, 'with', sharedCmd.commands.length, 'commands');
-          
-          // Inietta i comandi dello shared command
-          await new Promise(resolve => {
-            queueMicrotask(() => {
-              setProject(prevProject => {
-                const newScenes = [...prevProject.scenes];
-                const scene = { ...newScenes[currentSceneIndex] };
-                const commands = [...scene.commands];
-                
-                // Marca i comandi come iniettati
-                const markedCommands = sharedCmd.commands.map(cmd => ({
-                  ...cmd,
-                  _injected: true
-                }));
-                
-                // Inserisci DOPO il callSharedCommand corrente
-                const insertPosition = currentCommandIndex + 1;
-                commands.splice(insertPosition, 0, ...markedCommands);
-                
-                console.log('💉 Injected', markedCommands.length, 'commands from shared command');
-                
-                scene.commands = commands;
-                newScenes[currentSceneIndex] = scene;
-                
-                return { ...prevProject, scenes: newScenes };
-              });
-              
-              resolve();
-            });
-          });
-        } else {
-          console.warn('⚠️ Shared command not found or empty:', command.sharedCommandId);
-        }
-        
-        advanceCommand();
-      }
-      
+      } 
       updateScene(currentSceneIndex, { backgroundVisible: false });
       setBackgroundOpacity(1);
       if (!insideBranch) advanceCommand();
+    }
+    else if (command.type === 'callSharedCommand') {
+      console.log('📞 CALL SHARED COMMAND:', command.sharedCommandId);
+      
+      const sharedCmd = project.sharedCommands.find(sc => sc.id === command.sharedCommandId);
+      
+      if (sharedCmd && sharedCmd.commands && sharedCmd.commands.length > 0) {
+        console.log('📦 Found shared command:', sharedCmd.name, 'with', sharedCmd.commands.length, 'commands');
+        
+        // Inietta i comandi dello shared command
+        await new Promise(resolve => {
+          queueMicrotask(() => {
+            setProject(prevProject => {
+              const newScenes = [...prevProject.scenes];
+              const scene = { ...newScenes[currentSceneIndex] };
+              const commands = [...scene.commands];
+              
+              // Marca i comandi come iniettati
+              const markedCommands = sharedCmd.commands.map(cmd => ({
+                ...cmd,
+                _injected: true
+              }));
+              
+              // Inserisci DOPO il callSharedCommand corrente
+              const insertPosition = currentCommandIndex + 1;
+              commands.splice(insertPosition, 0, ...markedCommands);
+              
+              console.log('💉 Injected', markedCommands.length, 'commands from shared command');
+              
+              scene.commands = commands;
+              newScenes[currentSceneIndex] = scene;
+              
+              return { ...prevProject, scenes: newScenes };
+            });
+            
+            resolve();
+          });
+        });
+      } else {
+        console.warn('⚠️ Shared command not found or empty:', command.sharedCommandId);
+      }
+      
+      advanceCommand();
     }
     
     // I dialoghi NON chiamano MAI advanceCommand (aspettano il click)
