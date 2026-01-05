@@ -248,6 +248,22 @@ const VNEditor = () => {
     document.fonts.ready.then(() => setProject(p => ({...p})));
   }, []);
 
+  // Helper: Calculate character Y position based on pivot setting
+  const getCharacterY = (sceneIndex, imgHeight) => {
+    const scene = project.scenes[sceneIndex];
+    const pivot = scene.charactersPivot || 'bottom';
+    const height = project.resolution[1]; // 192
+    
+    if (pivot === 'msgbox') {
+      // Position above message box (which is at height - 60)
+      const msgBoxY = height - 60;
+      return msgBoxY - imgHeight; // 2px padding
+    } else {
+      // Default: screen bottom
+      return height - imgHeight;
+    }
+  };
+
   // Helper: Calculate character visibility state up to current command (for EDITOR preview)
   const getCharactersStateAtCommand = (sceneIndex, commandIndex) => {
     const scene = project.scenes[sceneIndex];
@@ -654,7 +670,7 @@ const advanceCommand = () => {
       charImg.onload = () => {
         const charWidth = charImg.width, charHeight = charImg.height;
         let charX = (project.resolution[0] - charWidth) / 2;
-        if (scene.characterPosition === 'left') charX = 0;
+        if (scene.characterPosition === 'left') charX = 10;
         if (scene.characterPosition === 'right') charX = project.resolution[0] - charWidth;
         newCtx.drawImage(charImg, charX, project.resolution[1] - charHeight, charWidth, charHeight);
         checkComplete();
@@ -665,7 +681,7 @@ const advanceCommand = () => {
       newCtx.fillStyle = '#4a4a4a';
       const charWidth = 64, charHeight = 96;
       let charX = (project.resolution[0] - charWidth) / 2;
-      if (scene.characterPosition === 'left') charX = 0;
+      if (scene.characterPosition === 'left') charX = 10;
       if (scene.characterPosition === 'right') charX = project.resolution[0] - charWidth;
       newCtx.fillRect(charX, project.resolution[1] - charHeight, charWidth, charHeight);
     }
@@ -970,10 +986,10 @@ const advanceCommand = () => {
               }
               
               let charX = Math.floor((width - sourceWidth) / 2);
-              if (char.position === 'left') charX = 0;
+              if (char.position === 'left') charX = 10;
               if (char.position === 'right') charX = width - sourceWidth;
               
-              const charY = Math.floor(height - charImg.height);
+              const charY = getCharacterY(currentSceneIndex, charImg.height);
               
               ctx.imageSmoothingEnabled = false;
               ctx.globalAlpha = 1; // Always full opacity in editor
@@ -1075,53 +1091,57 @@ const advanceCommand = () => {
         }
 
         // CHARACTERS on offscreen
-        const charImages = await Promise.all(
+        /*const charImages = await Promise.all(
           scene.characters.map(char => 
             (char.visible && char.sprite) ? loadImage(char.sprite) : Promise.resolve(null)
           )
-        );
+        );*/
 
-        /*const charImages = screenFade < 1 ? await Promise.all(
+        const charImages = screenFade < 1 ? await Promise.all(
           scene.characters.map(char => 
             (char.visible && char.sprite) ? loadImage(char.sprite) : Promise.resolve(null)
           )
         ) : [];
 
         if (screenFade < 1) {
+          const command = scene.commands[currentCommandIndex];
+          const speakerCharIndex = (command && command.type === 'dialogue' && command.speakerCharIndex !== null && command.speakerCharIndex !== undefined) 
+            ? command.speakerCharIndex 
+            : null;
+
           scene.characters.forEach((char, idx) => {
+            if (!char.visible || !charImages[idx]) return;
+
+            const img = charImages[idx];
+            let sourceWidth = img.width;
+            let sourceX = 0;
+            
+            if (char.animated && char.frames > 1) {
+              sourceWidth = img.width / char.frames;
+              sourceX = currentFrames.current[idx] * sourceWidth;
+            }
+            
+            let charX = Math.floor((width - sourceWidth) / 2);
+            if (char.position === 'left') charX = 10;
+            if (char.position === 'right') charX = width - sourceWidth;
+            
+            const charY = getCharacterY(currentSceneIndex, img.height);
+            
+            offCtx.imageSmoothingEnabled = false;
+            offCtx.mozImageSmoothingEnabled = false;
+            offCtx.webkitImageSmoothingEnabled = false;
+            offCtx.msImageSmoothingEnabled = false;
+
+            let finalOpacity = char.opacity !== undefined ? char.opacity : 1;
+            if (speakerCharIndex !== null && idx !== speakerCharIndex) {
+              finalOpacity *= 0.4; // Dim non-speaking characters to 40%
+            }
+            
+            offCtx.globalAlpha = finalOpacity
             offCtx.drawImage(img, Math.floor(sourceX), 0, Math.floor(sourceWidth), img.height, charX, charY, sourceWidth, img.height);
             offCtx.globalAlpha = 1;
           });
-        }*/
-
-
-        scene.characters.forEach((char, idx) => {
-          if (!char.visible || !charImages[idx]) return;
-
-          const img = charImages[idx];
-          let sourceWidth = img.width;
-          let sourceX = 0;
-          
-          if (char.animated && char.frames > 1) {
-            sourceWidth = img.width / char.frames;
-            sourceX = currentFrames.current[idx] * sourceWidth;
-          }
-          
-          let charX = Math.floor((width - sourceWidth) / 2);
-          if (char.position === 'left') charX = 0;
-          if (char.position === 'right') charX = width - sourceWidth;
-          
-          const charY = Math.floor(height - img.height);
-          
-          offCtx.imageSmoothingEnabled = false;
-          offCtx.mozImageSmoothingEnabled = false;
-          offCtx.webkitImageSmoothingEnabled = false;
-          offCtx.msImageSmoothingEnabled = false;
-          
-          offCtx.globalAlpha = char.opacity !== undefined ? char.opacity : 1;
-          offCtx.drawImage(img, Math.floor(sourceX), 0, Math.floor(sourceWidth), img.height, charX, charY, sourceWidth, img.height);
-          offCtx.globalAlpha = 1;
-        });
+        }
 
         // NOW blit offscreen to main canvas (single atomic operation)
         ctx.clearRect(0, 0, width, height);
@@ -1323,7 +1343,69 @@ const advanceCommand = () => {
       console.warn('⚠️ No file selected or event target is null');
       return;
     }
-    const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => { try { const imported = JSON.parse(ev.target.result); if (!imported.settings) imported.settings = { scale: 2, fontFamily: 'dogica, monospace', customFont: null, customMsgBox: null, customNameBox: null, customTransition: null, transitionDuration: 800 }; if (!imported.flags) imported.flags = []; imported.scenes = imported.scenes.map((scene, idx) => { if (scene.dialogues && !scene.commands) { scene.commands = scene.dialogues.map((d, i) => ({ id: Date.now() + i, type: 'dialogue', ...d })); delete scene.dialogues; } if (!scene.name) scene.name = `Scene ${idx + 1}`; return scene; }); setProject(imported); setCurrentSceneIndex(0); setCurrentCommandIndex(0); } catch (err) { alert('Error loading JSON: ' + err.message); } }; reader.readAsText(file); };
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = (ev) => {
+        try {
+            const imported = JSON.parse(ev.target.result);
+
+            // Inizializzazione impostazioni di default se mancanti
+            if (!imported.settings) {
+                imported.settings = {
+                    scale: 2,
+                    fontFamily: 'dogica, monospace',
+                    customFont: null,
+                    customMsgBox: null,
+                    customNameBox: null,
+                    customTransition: null,
+                    transitionDuration: 800
+                };
+            }
+
+            // Inizializzazione flag se mancanti
+            if (!imported.flags) {
+                imported.flags = [];
+            }
+
+            // Mapping e normalizzazione delle scene
+            imported.scenes = imported.scenes.map((scene, idx) => {
+              if (scene.dialogues && !scene.commands) {
+                scene.commands = scene.dialogues.map((d, i) => ({ id: Date.now() + i, type: 'dialogue', ...d }));
+                delete scene.dialogues;
+              }
+              if (!scene.name) scene.name = `Scene ${idx + 1}`;
+              
+              // ← AGGIUNGI: Defaults for new properties
+              if (!scene.charactersPivot) scene.charactersPivot = 'bottom';
+              if (scene.startFadedOut === undefined) scene.startFadedOut = false;
+              
+              // Add defaults to dialogue commands
+              scene.commands = scene.commands.map(cmd => {
+                if (cmd.type === 'dialogue' && cmd.speakerCharIndex === undefined) {
+                  cmd.speakerCharIndex = null;
+                }
+                return cmd;
+              });
+              
+              return scene;
+            });
+
+            // Aggiornamento dello stato dell'applicazione
+            setProject(imported);
+            setCurrentSceneIndex(0);
+            setCurrentCommandIndex(0);
+
+        } catch (err) {
+            alert('Error loading JSON: ' + err.message);
+        }
+    };
+
+      reader.readAsText(file);
+    }
+
 
   const scene = project.scenes[currentSceneIndex];
   const displayWidth = 256 * project.settings.scale;
@@ -1381,11 +1463,26 @@ const advanceCommand = () => {
                 </div>
               )}
 
-              <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px' }}>Initial Background Image:</label>
+              <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px', marginTop:'6px' }}>Initial Background Image:</label>
               <select value={scene.backgroundImage || ''} onChange={(e) => updateScene(currentSceneIndex, { backgroundImage: e.target.value || null, backgroundVisible: true })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '12px' }}>
                 <option value="">None (use color)</option>
                 {project.backgrounds.map(bg => <option key={bg.id} value={bg.data}>{bg.name}</option>)}
               </select>
+
+              <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px' }}>Characters Vertical Anchor:</label>
+              <select 
+                value={scene.charactersPivot || 'bottom'} 
+                onChange={(e) => updateScene(currentSceneIndex, { charactersPivot: e.target.value })} 
+                style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '12px' }}
+              >
+                <option value="bottom">Screen Bottom</option>
+                <option value="msgbox">On Message Box</option>
+              </select>
+              {scene.charactersPivot === 'msgbox' && (
+                <div style={{ fontSize: '9px', color: '#666', marginTop: '-8px', marginBottom: '12px', paddingLeft: '4px' }}>
+                  ℹ️ Characters will appear above dialogue box
+                </div>
+              )}
             </div>
             <CommandEditor 
               commands={scene.commands} 

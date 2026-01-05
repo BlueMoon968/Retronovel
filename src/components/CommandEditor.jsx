@@ -52,6 +52,7 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
         newCommand.speaker = 'Narrator';
         newCommand.text = 'New dialogue...';
         newCommand.choices = [];
+        newCommand.speakerCharIndex = null;
         break;
       case 'branching':
         newCommand.label = '';
@@ -175,7 +176,12 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
   };
 
   const getCommandLabel = (command) => {
-    if (command.type === 'dialogue') return `${command.speaker}: ${command.text.substring(0, 30)}...`;
+    if (command.type === 'dialogue') {
+      const speakerInfo = command.speakerCharIndex !== null && command.speakerCharIndex !== undefined 
+        ? ` [Slot ${command.speakerCharIndex}]` 
+        : '';
+      return `${command.speaker}${speakerInfo}: ${command.text.substring(0, 30)}...`;
+    }
     if (command.type === 'branching') return `Branch: ${command.label || 'Conditional'}`;
     if (command.type === 'setFlag') return `Set ${command.flagName} = ${command.flagValue}`;
     if (command.type === 'setVariable') return `Set ${command.variableName} ${command.operation} ${command.variableValue}`;
@@ -254,6 +260,29 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
               {command.type === 'dialogue' && (
                 <>
                   <input type="text" value={command.speaker} onChange={(e) => updateCommand(cmdIdx, { speaker: e.target.value })} placeholder="Speaker" style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', marginBottom: '6px', fontFamily: 'inherit' }} />
+                  {/* Character Speaker Highlight */}
+                  {characters && characters.length > 0 && (
+                    <>
+                      <label style={{ display: 'block', fontSize: '9px', color: '#888', marginBottom: '4px', marginTop: '8px' }}>
+                        Character Speaker (optional highlight):
+                      </label>
+                      <select 
+                        value={command.speakerCharIndex !== null && command.speakerCharIndex !== undefined ? command.speakerCharIndex : ''} 
+                        onChange={(e) => updateCommand(cmdIdx, { speakerCharIndex: e.target.value === '' ? null : parseInt(e.target.value) })} 
+                        style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', marginBottom: '6px', fontFamily: 'inherit' }}
+                      >
+                        <option value="">None (all characters visible)</option>
+                        <option value="0">Slot 0</option>
+                        <option value="1">Slot 1</option>
+                        <option value="2">Slot 2</option>
+                      </select>
+                      {command.speakerCharIndex !== null && command.speakerCharIndex !== undefined && (
+                        <div style={{ fontSize: '9px', color: '#666', marginTop: '-4px', marginBottom: '6px', paddingLeft: '4px' }}>
+                          ℹ️ Slot {command.speakerCharIndex} will stay bright, others dimmed
+                        </div>
+                      )}
+                    </>
+                  )}
                   <textarea value={command.text} onChange={(e) => updateCommand(cmdIdx, { text: e.target.value })} placeholder="Dialogue text..." rows="3" style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', resize: 'vertical', fontFamily: 'inherit' }} />
                   <ChoiceEditor dialogue={command} sceneIndex={sceneIndex} dialogueIndex={cmdIdx} updateDialogue={(_, __, field, value) => updateCommand(cmdIdx, { [field]: value })} totalScenes={totalScenes} flags={flags} variables={variables}/>
                 </>

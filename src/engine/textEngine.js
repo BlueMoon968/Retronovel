@@ -4,52 +4,108 @@
 
 export const parseTextTokens = (text) => {
   const tokens = [];
-  let pos = 0;
   let currentColor = '#ffffff';
+  let currentBold = false;
+  let currentItalic = false;
+  let i = 0;
   
-  while (pos < text.length) {
-    // Check for \**
-    if (text.substr(pos, 3) === '\\**') {
-      tokens.push({ type: 'pause', duration: 1000 });
-      pos += 3;
+  while (i < text.length) {
+    // Check for pause: \* or \**
+    if (text[i] === '\\' && i + 1 < text.length) {
+      if (text[i + 1] === '*') {
+        if (text[i + 2] === '*') {
+          tokens.push({ type: 'pause', duration: 1000 });
+          i += 3;
+          continue;
+        } else {
+          tokens.push({ type: 'pause', duration: 250 });
+          i += 2;
+          continue;
+        }
+      }
+    }
+    
+    // Check for color: \c[#hex]
+    if (text[i] === '\\' && text[i + 1] === 'c' && text[i + 2] === '[') {
+      const closeBracket = text.indexOf(']', i + 3);
+      if (closeBracket !== -1) {
+        currentColor = text.substring(i + 3, closeBracket);
+        tokens.push({ type: 'color', color: currentColor });
+        i = closeBracket + 1;
+        continue;
+      }
+    }
+    
+    // ← AGGIUNGI: Check for bold: [b]
+    if (text[i] === '[' && text[i + 1] === 'b' && text[i + 2] === ']') {
+      currentBold = true;
+      i += 3;
       continue;
     }
     
-    // Check for \*
-    if (text.substr(pos, 2) === '\\*') {
-      tokens.push({ type: 'pause', duration: 250 });
-      pos += 2;
+    // ← AGGIUNGI: Check for bold end: [/b]
+    if (text[i] === '[' && text[i + 1] === '/' && text[i + 2] === 'b' && text[i + 3] === ']') {
+      currentBold = false;
+      i += 4;
       continue;
     }
     
-    // Check for \c[#hex]
-    const colorMatch = text.substr(pos).match(/^\\c\[([#\w]+)\]/);
-    if (colorMatch) {
-      currentColor = colorMatch[1];
-      tokens.push({ type: 'color', color: currentColor });
-      pos += colorMatch[0].length;
+    // ← AGGIUNGI: Check for italic: [i]
+    if (text[i] === '[' && text[i + 1] === 'i' && text[i + 2] === ']') {
+      currentItalic = true;
+      i += 3;
       continue;
     }
     
-    // Regular text character
-    const lastToken = tokens[tokens.length - 1];
-    if (lastToken && lastToken.type === 'text' && lastToken.color === currentColor) {
-      lastToken.content += text[pos];
-    } else {
-      tokens.push({ type: 'text', content: text[pos], color: currentColor });
+    // ← AGGIUNGI: Check for italic end: [/i]
+    if (text[i] === '[' && text[i + 1] === '/' && text[i + 2] === 'i' && text[i + 3] === ']') {
+      currentItalic = false;
+      i += 4;
+      continue;
     }
-    pos++;
+    
+    // Regular character - accumulate into text token
+    let textContent = '';
+    while (i < text.length) {
+      const char = text[i];
+      
+      // Stop if we hit an escape sequence or markup
+      if (char === '\\' || (char === '[' && (
+        (text[i + 1] === 'b' && text[i + 2] === ']') ||
+        (text[i + 1] === 'i' && text[i + 2] === ']') ||
+        (text[i + 1] === '/' && text[i + 2] === 'b') ||
+        (text[i + 1] === '/' && text[i + 2] === 'i')
+      ))) {
+        break;
+      }
+      
+      textContent += char;
+      i++;
+    }
+    
+    if (textContent.length > 0) {
+      tokens.push({ 
+        type: 'text', 
+        content: textContent, 
+        color: currentColor,
+        bold: currentBold,
+        italic: currentItalic
+      });
+    }
   }
   
   return tokens;
 };
 
 export const getPlainText = (text) => {
-  // Remove all escape sequences for plain text
   return text
-    .replace(/\\\*\*/g, '')
-    .replace(/\\\*/g, '')
-    .replace(/\\c\[[#\w]+\]/g, '');
+    .replace(/\\\*\*/g, '')  // Remove \**
+    .replace(/\\\*/g, '')     // Remove \*
+    .replace(/\\c\[#[0-9a-fA-F]{6}\]/g, '')  // Remove \c[#hex]
+    .replace(/\[b\]/g, '')    // ← Remove [b]
+    .replace(/\[\/b\]/g, '')  // ← Remove [/b]
+    .replace(/\[i\]/g, '')    // ← Remove [i]
+    .replace(/\[\/i\]/g, ''); // ← Remove [/i]
 };
 
 export const measureTextWidth = (ctx, text, font) => {

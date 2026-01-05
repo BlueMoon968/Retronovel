@@ -3,6 +3,16 @@
  * Single source of truth for all visual novel rendering
  */
 
+/**
+ * Build font string with style modifiers
+ */
+
+const buildFontString = (size, family, bold = false, italic = false) => {
+  const style = italic ? 'italic ' : '';
+  const weight = bold ? 'bold ' : '';
+  return `${style}${weight}${size}px ${family}`;
+};
+
 export const drawNinePatch = (ctx, image, x, y, width, height) => {
   if (!image || !image.complete) return false;
   
@@ -31,29 +41,49 @@ export const drawNinePatch = (ctx, image, x, y, width, height) => {
 export const drawNameBox = (ctx, nameBoxImage, speaker, boxX, boxY, fontFamily) => {
   // ← IMPORT parseTextTokens inline per evitare circular dependency
   const parseTextTokens = (text) => {
+    // (copia funzione parseTextTokens da textEngine.js inline)
     const tokens = [];
-    let pos = 0;
     let currentColor = '#ffffff';
+    let currentBold = false;
+    let currentItalic = false;
+    let i = 0;
     
-    while (pos < text.length) {
-      if (text.substr(pos, 3) === '\\**') { pos += 3; continue; }
-      if (text.substr(pos, 2) === '\\*') { pos += 2; continue; }
-      
-      const colorMatch = text.substr(pos).match(/^\\c\[([#\w]+)\]/);
-      if (colorMatch) {
-        currentColor = colorMatch[1];
-        tokens.push({ type: 'color', color: currentColor });
-        pos += colorMatch[0].length;
-        continue;
+    while (i < text.length) {
+      if (text[i] === '\\' && i + 1 < text.length) {
+        if (text[i + 1] === '*') {
+          if (text[i + 2] === '*') { tokens.push({ type: 'pause', duration: 1000 }); i += 3; continue; }
+          else { tokens.push({ type: 'pause', duration: 250 }); i += 2; continue; }
+        }
       }
-      
-      const lastToken = tokens[tokens.length - 1];
-      if (lastToken && lastToken.type === 'text' && lastToken.color === currentColor) {
-        lastToken.content += text[pos];
-      } else {
-        tokens.push({ type: 'text', content: text[pos], color: currentColor });
+      if (text[i] === '\\' && text[i + 1] === 'c' && text[i + 2] === '[') {
+        const closeBracket = text.indexOf(']', i + 3);
+        if (closeBracket !== -1) {
+          currentColor = text.substring(i + 3, closeBracket);
+          tokens.push({ type: 'color', color: currentColor });
+          i = closeBracket + 1;
+          continue;
+        }
       }
-      pos++;
+      if (text[i] === '[' && text[i + 1] === 'b' && text[i + 2] === ']') { currentBold = true; i += 3; continue; }
+      if (text[i] === '[' && text[i + 1] === '/' && text[i + 2] === 'b' && text[i + 3] === ']') { currentBold = false; i += 4; continue; }
+      if (text[i] === '[' && text[i + 1] === 'i' && text[i + 2] === ']') { currentItalic = true; i += 3; continue; }
+      if (text[i] === '[' && text[i + 1] === '/' && text[i + 2] === 'i' && text[i + 3] === ']') { currentItalic = false; i += 4; continue; }
+      
+      let textContent = '';
+      while (i < text.length) {
+        const char = text[i];
+        if (char === '\\' || (char === '[' && (
+          (text[i + 1] === 'b' && text[i + 2] === ']') ||
+          (text[i + 1] === 'i' && text[i + 2] === ']') ||
+          (text[i + 1] === '/' && text[i + 2] === 'b') ||
+          (text[i + 1] === '/' && text[i + 2] === 'i')
+        ))) break;
+        textContent += char;
+        i++;
+      }
+      if (textContent.length > 0) {
+        tokens.push({ type: 'text', content: textContent, color: currentColor, bold: currentBold, italic: currentItalic });
+      }
     }
     return tokens;
   };
@@ -78,16 +108,14 @@ export const drawNameBox = (ctx, nameBoxImage, speaker, boxX, boxY, fontFamily) 
     ctx.strokeRect(nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
   }
   
-  // ← Render speaker name with color support
+  // Render speaker name with styles
   const tokens = parseTextTokens(speaker);
   let x = nameBoxX + 8;
-  ctx.font = 'bold 8px ' + fontFamily;
   
   tokens.forEach(token => {
-    if (token.type === 'color') {
-      // Color change
-    } else if (token.type === 'text') {
+    if (token.type === 'text') {
       ctx.fillStyle = token.color;
+      ctx.font = buildFontString(8, fontFamily, token.bold, token.italic);
       ctx.fillText(token.content, x, nameBoxY + 11);
       x += ctx.measureText(token.content).width;
     }
@@ -95,73 +123,118 @@ export const drawNameBox = (ctx, nameBoxImage, speaker, boxX, boxY, fontFamily) 
 };
 
 export const drawDialogueText = (ctx, text, boxX, boxY, boxWidth, fontFamily) => {
-  // ← IMPORT functions inline
+  const maxWidth = boxWidth - 16;
+  let y = boxY + 16;
+  const lineHeight = 12;
+  
+  // ← MODIFICA: Parse tokens (inline copy from textEngine.js)
   const parseTextTokens = (text) => {
     const tokens = [];
-    let pos = 0;
     let currentColor = '#ffffff';
+    let currentBold = false;
+    let currentItalic = false;
+    let i = 0;
     
-    while (pos < text.length) {
-      if (text.substr(pos, 3) === '\\**') { pos += 3; continue; }
-      if (text.substr(pos, 2) === '\\*') { pos += 2; continue; }
-      
-      const colorMatch = text.substr(pos).match(/^\\c\[([#\w]+)\]/);
-      if (colorMatch) {
-        currentColor = colorMatch[1];
-        tokens.push({ type: 'color', color: currentColor });
-        pos += colorMatch[0].length;
-        continue;
+    while (i < text.length) {
+      if (text[i] === '\\' && i + 1 < text.length) {
+        if (text[i + 1] === '*') {
+          if (text[i + 2] === '*') { tokens.push({ type: 'pause', duration: 1000 }); i += 3; continue; }
+          else { tokens.push({ type: 'pause', duration: 250 }); i += 2; continue; }
+        }
       }
-      
-      const lastToken = tokens[tokens.length - 1];
-      if (lastToken && lastToken.type === 'text' && lastToken.color === currentColor) {
-        lastToken.content += text[pos];
-      } else {
-        tokens.push({ type: 'text', content: text[pos], color: currentColor });
+      if (text[i] === '\\' && text[i + 1] === 'c' && text[i + 2] === '[') {
+        const closeBracket = text.indexOf(']', i + 3);
+        if (closeBracket !== -1) {
+          currentColor = text.substring(i + 3, closeBracket);
+          tokens.push({ type: 'color', color: currentColor });
+          i = closeBracket + 1;
+          continue;
+        }
       }
-      pos++;
+      if (text[i] === '[' && text[i + 1] === 'b' && text[i + 2] === ']') { currentBold = true; i += 3; continue; }
+      if (text[i] === '[' && text[i + 1] === '/' && text[i + 2] === 'b' && text[i + 3] === ']') { currentBold = false; i += 4; continue; }
+      if (text[i] === '[' && text[i + 1] === 'i' && text[i + 2] === ']') { currentItalic = true; i += 3; continue; }
+      if (text[i] === '[' && text[i + 1] === '/' && text[i + 2] === 'i' && text[i + 3] === ']') { currentItalic = false; i += 4; continue; }
+      
+      let textContent = '';
+      while (i < text.length) {
+        const char = text[i];
+        if (char === '\\' || (char === '[' && (
+          (text[i + 1] === 'b' && text[i + 2] === ']') ||
+          (text[i + 1] === 'i' && text[i + 2] === ']') ||
+          (text[i + 1] === '/' && text[i + 2] === 'b') ||
+          (text[i + 1] === '/' && text[i + 2] === 'i')
+        ))) break;
+        textContent += char;
+        i++;
+      }
+      if (textContent.length > 0) {
+        tokens.push({ type: 'text', content: textContent, color: currentColor, bold: currentBold, italic: currentItalic });
+      }
     }
     return tokens;
   };
   
-  ctx.font = '8px ' + fontFamily;
-  
-  const maxWidth = boxWidth - 16;
-  let x = boxX + 8;
-  let y = boxY + 16;
-  const lineHeight = 12;
-  let currentLineWidth = 0;
-  let currentColor = '#ffffff';
-  
   const tokens = parseTextTokens(text);
   
+  // Convert tokens to word array with style info
+  const styledWords = [];
   tokens.forEach(token => {
-    if (token.type === 'color') {
-      currentColor = token.color;
-      return;
-    }
-    
     if (token.type === 'text') {
       const words = token.content.split(' ');
-      
       words.forEach((word, idx) => {
-        const wordWithSpace = idx < words.length - 1 ? word + ' ' : word;
-        const wordWidth = ctx.measureText(wordWithSpace).width;
-        
-        if (currentLineWidth + wordWidth > maxWidth && currentLineWidth > 0) {
-          // New line
-          x = boxX + 8;
-          y += lineHeight;
-          currentLineWidth = 0;
+        if (word.length > 0) {
+          styledWords.push({
+            text: word + (idx < words.length - 1 ? ' ' : ''),
+            color: token.color,
+            bold: token.bold,
+            italic: token.italic
+          });
         }
-        
-        ctx.fillStyle = currentColor;
-        ctx.fillText(wordWithSpace, x, y);
-        x += wordWidth;
-        currentLineWidth += wordWidth;
       });
     }
   });
+  
+  // Word-wrap with styles
+  let currentLine = [];
+  let currentLineWidth = 0;
+  
+  styledWords.forEach(word => {
+    ctx.font = buildFontString(8, fontFamily, word.bold, word.italic);
+    const wordWidth = ctx.measureText(word.text).width;
+    
+    if (currentLineWidth + wordWidth > maxWidth && currentLine.length > 0) {
+      // Render current line
+      let x = boxX + 8;
+      currentLine.forEach(w => {
+        ctx.fillStyle = w.color;
+        ctx.font = buildFontString(8, fontFamily, w.bold, w.italic);
+        ctx.fillText(w.text, x, y);
+        x += ctx.measureText(w.text).width;
+      });
+      
+      // New line
+      y += lineHeight;
+      currentLine = [word];
+      currentLineWidth = wordWidth;
+    } else {
+      currentLine.push(word);
+      currentLineWidth += wordWidth;
+    }
+  });
+  
+  // Render last line
+  if (currentLine.length > 0) {
+    let x = boxX + 8;
+    currentLine.forEach(w => {
+      ctx.fillStyle = w.color;
+      ctx.font = buildFontString(8, fontFamily, w.bold, w.italic);
+      ctx.fillText(w.text, x, y);
+      x += ctx.measureText(w.text).width;
+    });
+  }
+  
+  return y;
 };
 
 export const drawChoices = (ctx, dialogue, canvasWidth, canvasHeight, fontFamily) => {
