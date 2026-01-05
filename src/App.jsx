@@ -175,7 +175,7 @@ const VNEditor = () => {
         });
         initialSceneState.current = null;
       }
-      
+
       setBackgroundOpacity(1);
       currentFrames.current = [0, 0, 0];
       setAnimationTick(0);
@@ -291,26 +291,34 @@ const VNEditor = () => {
       
       // INIETTA i comandi della branch nella scena DOPO il branching corrente
       if (commandsToInject.length > 0) {
-          flushSync(() => {
-          setProject(prevProject => {
-            const newScenes = [...prevProject.scenes];
-            const scene = { ...newScenes[currentSceneIndex] };
-            const commands = [...scene.commands];
+        await new Promise(resolve => {
+          queueMicrotask(() => {
+            setProject(prevProject => {
+              const newScenes = [...prevProject.scenes];
+              const scene = { ...newScenes[currentSceneIndex] };
+              const commands = [...scene.commands];
+
+              // Mark Injected commands
+              const markedCommands = commandsToInject.map(cmd => ({
+                ...cmd,
+                _injected: true  // ← MARCA con flag
+              }));
+              // Inserisci i comandi DOPO il branching corrente
+              const insertPosition = currentCommandIndex + 1;
+              commands.splice(insertPosition, 0, ...markedCommands);
+              
+              console.log('💉 Injected', markedCommands.length, 'commands at position', insertPosition);
+
+              scene.commands = commands;
+              newScenes[currentSceneIndex] = scene;
+              
+              return { ...prevProject, scenes: newScenes };
+            });
             
-            // Inserisci i comandi DOPO il branching corrente
-            const insertPosition = currentCommandIndex + 1;
-            commands.splice(insertPosition, 0, ...commandsToInject);
-            
-            console.log('💉 Injected', commandsToInject.length, 'commands at position', insertPosition);
-            
-            scene.commands = commands;
-            newScenes[currentSceneIndex] = scene;
-            
-            return { ...prevProject, scenes: newScenes };
+            // Risolvi dopo il setState
+            resolve();
           });
-        })
-        // Aspetta che React aggiorni lo stato
-        //await new Promise(resolve => setTimeout(resolve, 10));
+        });
       }
       
       console.log('🔀 BRANCHING END - advancing');
@@ -1038,7 +1046,13 @@ const VNEditor = () => {
 
   const exportHTML = () => { const html = generateGameHTML(project); const blob = new Blob([html], { type: 'text/html' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${project.title.replace(/\s+/g, '_')}.html`; a.click(); URL.revokeObjectURL(url); };
   const exportJSON = () => { const json = JSON.stringify(project, null, 2); const blob = new Blob([json], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${project.title.replace(/\s+/g, '_')}.json`; a.click(); URL.revokeObjectURL(url); };
-  const importJSON = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => { try { const imported = JSON.parse(ev.target.result); if (!imported.settings) imported.settings = { scale: 2, fontFamily: 'dogica, monospace', customFont: null, customMsgBox: null, customNameBox: null, customTransition: null, transitionDuration: 800 }; if (!imported.flags) imported.flags = []; imported.scenes = imported.scenes.map((scene, idx) => { if (scene.dialogues && !scene.commands) { scene.commands = scene.dialogues.map((d, i) => ({ id: Date.now() + i, type: 'dialogue', ...d })); delete scene.dialogues; } if (!scene.name) scene.name = `Scene ${idx + 1}`; return scene; }); setProject(imported); setCurrentSceneIndex(0); setCurrentCommandIndex(0); } catch (err) { alert('Error loading JSON: ' + err.message); } }; reader.readAsText(file); };
+  const importJSON = (e) => { 
+    // NUll protection
+    if (!e.target || !e.target.files || e.target.files.length === 0) {
+      console.warn('⚠️ No file selected or event target is null');
+      return;
+    }
+    const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => { try { const imported = JSON.parse(ev.target.result); if (!imported.settings) imported.settings = { scale: 2, fontFamily: 'dogica, monospace', customFont: null, customMsgBox: null, customNameBox: null, customTransition: null, transitionDuration: 800 }; if (!imported.flags) imported.flags = []; imported.scenes = imported.scenes.map((scene, idx) => { if (scene.dialogues && !scene.commands) { scene.commands = scene.dialogues.map((d, i) => ({ id: Date.now() + i, type: 'dialogue', ...d })); delete scene.dialogues; } if (!scene.name) scene.name = `Scene ${idx + 1}`; return scene; }); setProject(imported); setCurrentSceneIndex(0); setCurrentCommandIndex(0); } catch (err) { alert('Error loading JSON: ' + err.message); } }; reader.readAsText(file); };
 
   const scene = project.scenes[currentSceneIndex];
   const displayWidth = 256 * project.settings.scale;
@@ -1051,7 +1065,7 @@ const VNEditor = () => {
         <input type="text" value={project.title} onChange={(e) => setProject({ ...project, title: e.target.value })} style={{ width: '100%', padding: '8px', background: '#2a2a3e', border: '1px solid #4a5568', color: '#fff', fontSize: '12px', fontFamily: 'inherit' }} />
         
         <div style={{ display: 'flex', gap: '4px', marginTop: '16px', marginBottom: '16px' }}>
-          {['scenes', 'assets', 'settings', 'export'].map(tab => (
+          {['scenes', 'assets', 'settings', 'export/import'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{ flex: 1, padding: '8px 4px', background: activeTab === tab ? '#f39c12' : '#2a2a3e', color: activeTab === tab ? '#000' : '#fff', border: 'none', cursor: 'pointer', fontSize: '10px', textTransform: 'uppercase', fontWeight: 'bold', fontFamily: 'inherit' }}>{tab}</button>
           ))}
         </div>
@@ -1566,7 +1580,7 @@ const VNEditor = () => {
           </div>
         )}
 
-        {activeTab === 'export' && (
+        {activeTab === 'export/import' && (
           <div>
             <h3 style={{ fontSize: '14px', color: '#f39c12', marginBottom: '16px' }}>Export & Import</h3>
             <button onClick={exportHTML} style={{ width: '100%', padding: '12px', background: '#3498db', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '12px', marginBottom: '8px', fontWeight: 'bold', fontFamily: 'inherit' }}>📦 Export HTML</button>
@@ -1589,12 +1603,34 @@ const VNEditor = () => {
         <button
           onClick={() => {
             if (!isPlaying) {
+              // ← PULISCI tutti i comandi iniettati da playthrough precedenti
+              console.log('🧹 Cleaning injected commands from previous playthrough');
+              setProject(prevProject => {
+                const cleanedScenes = prevProject.scenes.map(scene => ({
+                  ...scene,
+                  commands: scene.commands.filter(cmd => !cmd._injected)
+                }));
+                
+                const injectedCount = prevProject.scenes.reduce((sum, scene) => 
+                  sum + scene.commands.filter(cmd => cmd._injected).length, 0
+                );
+                
+                if (injectedCount > 0) {
+                  console.log('  🗑️ Removed', injectedCount, 'injected commands total');
+                }
+                
+                return { ...prevProject, scenes: cleanedScenes };
+              });
+              
+              // Salva stato iniziale della scena corrente
               const scene = project.scenes[currentSceneIndex];
               initialSceneState.current = {
                 characters: scene.characters ? JSON.parse(JSON.stringify(scene.characters)) : null,
                 backgroundImage: scene.backgroundImage,
                 backgroundVisible: scene.backgroundVisible
               };
+              
+              console.log('▶️ Play started');
             }
             setIsPlaying(!isPlaying);
             if (!isPlaying) {
