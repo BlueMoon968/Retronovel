@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import CommandEditor from './components/CommandEditor';
 import FlagsManager from './components/FlagsManager';
 import VariablesManager from './components/VariablesManager';
@@ -290,25 +291,26 @@ const VNEditor = () => {
       
       // INIETTA i comandi della branch nella scena DOPO il branching corrente
       if (commandsToInject.length > 0) {
-        setProject(prevProject => {
-          const newScenes = [...prevProject.scenes];
-          const scene = { ...newScenes[currentSceneIndex] };
-          const commands = [...scene.commands];
-          
-          // Inserisci i comandi DOPO il branching corrente
-          const insertPosition = currentCommandIndex + 1;
-          commands.splice(insertPosition, 0, ...commandsToInject);
-          
-          console.log('💉 Injected', commandsToInject.length, 'commands at position', insertPosition);
-          
-          scene.commands = commands;
-          newScenes[currentSceneIndex] = scene;
-          
-          return { ...prevProject, scenes: newScenes };
-        });
-
+          flushSync(() => {
+          setProject(prevProject => {
+            const newScenes = [...prevProject.scenes];
+            const scene = { ...newScenes[currentSceneIndex] };
+            const commands = [...scene.commands];
+            
+            // Inserisci i comandi DOPO il branching corrente
+            const insertPosition = currentCommandIndex + 1;
+            commands.splice(insertPosition, 0, ...commandsToInject);
+            
+            console.log('💉 Injected', commandsToInject.length, 'commands at position', insertPosition);
+            
+            scene.commands = commands;
+            newScenes[currentSceneIndex] = scene;
+            
+            return { ...prevProject, scenes: newScenes };
+          });
+        })
         // Aspetta che React aggiorni lo stato
-        await new Promise(resolve => setTimeout(resolve, 10));
+        //await new Promise(resolve => setTimeout(resolve, 10));
       }
       
       console.log('🔀 BRANCHING END - advancing');
