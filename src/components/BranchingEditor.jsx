@@ -11,7 +11,8 @@ const BranchingEditor = ({
   variables,
   audio,
   characters,
-  backgrounds 
+  backgrounds,
+  sharedCommands
 }) => {
   const [expandedBranches, setExpandedBranches] = useState({ 0: true });
 
@@ -223,6 +224,7 @@ const BranchingEditor = ({
                 audio={audio}
                 characters={characters}
                 backgrounds={backgrounds}
+                sharedCommands={sharedCommands}
               />
             </div>
           )}

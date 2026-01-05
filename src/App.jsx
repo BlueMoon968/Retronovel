@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { flushSync } from 'react-dom';
+
 import CommandEditor from './components/CommandEditor';
 import FlagsManager from './components/FlagsManager';
 import VariablesManager from './components/VariablesManager';
+import SharedCommandsManager from './components/SharedCommandsManager';
+
 import { drawNinePatch, drawNameBox, drawDialogueText, drawChoices, drawArrow, drawSceneIndicator } from './engine/renderEngine';
 import { performGradientWipe, captureScene } from './engine/transitionEngine';
 import { generateGameHTML } from './engine/exportEngine';
@@ -14,6 +16,7 @@ const VNEditor = () => {
     resolution: [256, 192],
     flags: [],
     variables: [],
+    sharedCommands: [],
     settings: { scale: 2, fontFamily: 'dogica, monospace', customFont: null, customMsgBox: null, customNameBox: null, customTransition: null, transitionDuration: 800,     masterVolumeBGM: 1.0,
     masterVolumeBGS: 1.0,
     masterVolumeSFX: 1.0,
@@ -461,6 +464,50 @@ const VNEditor = () => {
     else if (command.type === 'hideBackground') {
       if (command.faded) {
         await fadeBackground(0, command.fadeDuration);
+      }
+      else if (command.type === 'callSharedCommand') {
+        // ← AGGIUNGI QUESTO BLOCCO
+        console.log('📞 CALL SHARED COMMAND:', command.sharedCommandId);
+        
+        const sharedCmd = project.sharedCommands.find(sc => sc.id === command.sharedCommandId);
+        
+        if (sharedCmd && sharedCmd.commands && sharedCmd.commands.length > 0) {
+          console.log('📦 Found shared command:', sharedCmd.name, 'with', sharedCmd.commands.length, 'commands');
+          
+          // Inietta i comandi dello shared command
+          await new Promise(resolve => {
+            queueMicrotask(() => {
+              setProject(prevProject => {
+                const newScenes = [...prevProject.scenes];
+                const scene = { ...newScenes[currentSceneIndex] };
+                const commands = [...scene.commands];
+                
+                // Marca i comandi come iniettati
+                const markedCommands = sharedCmd.commands.map(cmd => ({
+                  ...cmd,
+                  _injected: true
+                }));
+                
+                // Inserisci DOPO il callSharedCommand corrente
+                const insertPosition = currentCommandIndex + 1;
+                commands.splice(insertPosition, 0, ...markedCommands);
+                
+                console.log('💉 Injected', markedCommands.length, 'commands from shared command');
+                
+                scene.commands = commands;
+                newScenes[currentSceneIndex] = scene;
+                
+                return { ...prevProject, scenes: newScenes };
+              });
+              
+              resolve();
+            });
+          });
+        } else {
+          console.warn('⚠️ Shared command not found or empty:', command.sharedCommandId);
+        }
+        
+        advanceCommand();
       }
       
       updateScene(currentSceneIndex, { backgroundVisible: false });
@@ -1065,7 +1112,7 @@ const VNEditor = () => {
         <input type="text" value={project.title} onChange={(e) => setProject({ ...project, title: e.target.value })} style={{ width: '100%', padding: '8px', background: '#2a2a3e', border: '1px solid #4a5568', color: '#fff', fontSize: '12px', fontFamily: 'inherit' }} />
         
         <div style={{ display: 'flex', gap: '4px', marginTop: '16px', marginBottom: '16px' }}>
-          {['scenes', 'assets', 'settings', 'export/import'].map(tab => (
+          {['scenes', 'assets', 'shared commands', 'settings', 'export/import'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{ flex: 1, padding: '8px 4px', background: activeTab === tab ? '#f39c12' : '#2a2a3e', color: activeTab === tab ? '#000' : '#fff', border: 'none', cursor: 'pointer', fontSize: '10px', textTransform: 'uppercase', fontWeight: 'bold', fontFamily: 'inherit' }}>{tab}</button>
           ))}
         </div>
@@ -1132,7 +1179,7 @@ const VNEditor = () => {
                 </>
               )}
             </div>
-            <CommandEditor commands={scene.commands} sceneIndex={currentSceneIndex} updateCommands={(cmds) => updateScene(currentSceneIndex, { commands: cmds })} totalScenes={project.scenes.length} flags={project.flags} audio={project.audio} onJumpToCommand={(index) => setCurrentCommandIndex(index)} characters={project.characters} backgrounds={project.backgrounds} variables={project.variables}/>
+            <CommandEditor commands={scene.commands} sceneIndex={currentSceneIndex} updateCommands={(cmds) => updateScene(currentSceneIndex, { commands: cmds })} totalScenes={project.scenes.length} flags={project.flags} audio={project.audio} sharedCommands={project.sharedCommands} onJumpToCommand={(index) => setCurrentCommandIndex(index)} characters={project.characters} backgrounds={project.backgrounds} variables={project.variables}/>
           </div>
         )}
 
@@ -1275,6 +1322,39 @@ const VNEditor = () => {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'shared commands' && (
+          <div>
+            <h3 style={{ fontSize: '14px', color: '#f39c12', marginBottom: '12px' }}>
+              Shared Commands
+            </h3>
+            <div style={{ 
+              padding: '12px', 
+              background: 'rgba(230, 126, 34, 0.1)', 
+              border: '1px solid #e67e22', 
+              fontSize: '10px', 
+              lineHeight: '1.6',
+              marginBottom: '16px'
+            }}>
+              <strong style={{ color: '#e67e22' }}>💡 Info:</strong>
+              <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
+                <li>Shared commands are reusable command groups</li>
+                <li>Use "Call Shared Command" to execute them</li>
+              </ul>
+            </div>
+            
+            <SharedCommandsManager 
+              sharedCommands={project.sharedCommands}
+              updateSharedCommands={(sc) => setProject({ ...project, sharedCommands: sc })}
+              flags={project.flags}
+              variables={project.variables}
+              audio={project.audio}
+              characters={project.characters}
+              backgrounds={project.backgrounds}
+              totalScenes={project.scenes.length}
+            />
           </div>
         )}
 

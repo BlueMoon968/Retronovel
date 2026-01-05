@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import ChoiceEditor from './ChoiceEditor';
 import BranchingEditor from './BranchingEditor';
 
-const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flags, variables, audio, characters, backgrounds, onJumpToCommand }) => {
+const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flags, variables, audio, characters, backgrounds, sharedCommands, onJumpToCommand }) => {
   const [showCommandMenu, setShowCommandMenu] = useState(false);
   const [collapsedCommands, setCollapsedCommands] = useState({});
 
@@ -14,12 +14,17 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
     variables = []
   }
 
+  if (!sharedCommands) {
+    sharedCommands = []
+  }
+
   const commandCategories = {
     'Dialogues & Logic': [
       { type: 'dialogue', icon: '💬', label: 'Add Dialogue' },
       { type: 'branching', icon: '🔀', label: 'Branching' },
       { type: 'setFlag', icon: '🚩', label: 'Set Flag' },
       { type: 'setVariable', icon: '🔢', label: 'Set Variable' },
+      { type: 'callSharedCommand', icon: '📞', label: 'Call Shared Command' },
       { type: 'goto', icon: '➡️', label: 'Goto Scene' },
       { type: 'showCharacter', icon: '👤', label: 'Show/Change Character' },
       { type: 'hideCharacter', icon: '👻', label: 'Hide Character' },
@@ -69,6 +74,9 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
         newCommand.variableName = project.variables?.length > 0 ? project.variables[0].name : '';
         newCommand.variableValue = 0;
         newCommand.operation = 'set'; // set, add, subtract
+      case 'callSharedCommand':  // ← AGGIUNGI
+        newCommand.sharedCommandId = sharedCommands.length > 0 ? sharedCommands[0].id : null;
+        break;
       case 'goto':
         newCommand.targetScene = Math.min(sceneIndex + 1, totalScenes - 1);
         newCommand.useTransition = true;
@@ -255,6 +263,7 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
                   audio={audio}
                   characters={characters}
                   backgrounds={backgrounds}
+                  sharedCommands={sharedCommands}
                 />
               )}
               {/* SET FLAG COMMAND */}
@@ -321,6 +330,67 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
                     {command.operation === 'add' && '+ (max 255)'}
                     {command.operation === 'subtract' && '- (min 0)'}
                   </div>
+                </>
+              )}
+
+              {/* CALL SHARED COMMAND */}
+              {command.type === 'callSharedCommand' && (
+                <>
+                  <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                    Shared Command:
+                  </label>
+                  <select 
+                    value={command.sharedCommandId || ''} 
+                    onChange={(e) => updateCommand(cmdIdx, { sharedCommandId: parseInt(e.target.value) })} 
+                    style={{ 
+                      width: '100%', 
+                      padding: '6px', 
+                      background: '#1a1a2e', 
+                      border: '1px solid #e67e22', 
+                      color: '#fff', 
+                      fontSize: '11px', 
+                      fontFamily: 'inherit',
+                      marginBottom: '8px'
+                    }}
+                  >
+                    {sharedCommands.length === 0 ? (
+                      <option value="">-- No shared commands available --</option>
+                    ) : (
+                      <>
+                        <option value="">-- Select shared command --</option>
+                        {sharedCommands.map((sc, idx) => (
+                          <option key={sc.id} value={sc.id}>
+                            #{String(idx + 1).padStart(4, '0')} - {sc.name}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                  
+                  {command.sharedCommandId && (
+                    <div style={{ 
+                      padding: '8px', 
+                      background: '#1a1a2e', 
+                      border: '1px solid #e67e22', 
+                      fontSize: '9px', 
+                      color: '#e67e22' 
+                    }}>
+                      ℹ️ This will execute all commands from the selected shared command
+                    </div>
+                  )}
+                  
+                  {sharedCommands.length === 0 && (
+                    <div style={{ 
+                      padding: '8px', 
+                      background: '#1a1a2e', 
+                      border: '1px solid #666', 
+                      fontSize: '9px', 
+                      color: '#666',
+                      textAlign: 'center'
+                    }}>
+                      Create shared commands in the "Shared" tab
+                    </div>
+                  )}
                 </>
               )}
 
