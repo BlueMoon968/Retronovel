@@ -9,6 +9,7 @@ import { drawNinePatch, drawNameBox, drawDialogueText, drawChoices, drawArrow, d
 import { performGradientWipe, captureScene } from './engine/transitionEngine';
 import { generateGameHTML } from './engine/exportEngine';
 import { audioManager } from './engine/audioEngine';
+import { parseTextTokens, getPlainText } from './engine/textEngine';
 
 const VNEditor = () => {
   const [project, setProject] = useState({
@@ -69,6 +70,7 @@ const VNEditor = () => {
   const [animationTick, setAnimationTick] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
   const [collapsedCommands, setCollapsedCommands] = useState({});
+  const [screenFade, setScreenFade] = useState(0); // 0 = visible, 1 = black
   
   const canvasRef = useRef(null);
   const msgBoxImageRef = useRef(null);
@@ -185,6 +187,7 @@ const VNEditor = () => {
       }
 
       setBackgroundOpacity(1);
+      setScreenFade(0);
       currentFrames.current = [0, 0, 0];
       setAnimationTick(0);
       
@@ -569,11 +572,22 @@ const VNEditor = () => {
             resolve();
           });
         });
-      } else {
+      } 
+      else {
         console.warn('⚠️ Shared command not found or empty:', command.sharedCommandId);
       }
       
       advanceCommand();
+    }
+    else if (command.type === 'fadeInScreen') {
+      const currentFade = screenFade;
+      await fadeScreen(currentFade, 0, command.duration * 1000);
+      if (!insideBranch) advanceCommand();
+    }
+    else if (command.type === 'fadeOutScreen') {
+      const currentFade = screenFade;
+      await fadeScreen(currentFade, 1, command.duration * 1000);
+      if (!insideBranch) advanceCommand();
     }
     
     // I dialoghi NON chiamano MAI advanceCommand (aspettano il click)
@@ -591,6 +605,15 @@ const advanceCommand = () => {
   };
 
   const changeSceneWithTransition = (newSceneIndex, newCommandIndex = 0) => {
+
+    const newScene = project.scenes[newSceneIndex];
+    if (newScene.startFadedOut) {
+      console.log('🌑 New scene starts faded out');
+      setScreenFade(1);
+    } else {
+      // Reset to visible if new scene doesn't start faded
+      setScreenFade(0);
+    }
 
     updateScene(currentSceneIndex, {
       characters: [
@@ -679,7 +702,7 @@ const advanceCommand = () => {
         const progress = Math.min(elapsed / duration, 1);
         const currentOpacity = startOpacity + (targetOpacity - startOpacity) * progress;
         
-        console.log('  ⏱️ Progress:', Math.round(progress * 100) + '%', 'Opacity:', currentOpacity.toFixed(2));
+        //console.log('  ⏱️ Progress:', Math.round(progress * 100) + '%', 'Opacity:', currentOpacity.toFixed(2));
         
         setProject(prev => {
           const newScenes = [...prev.scenes];
@@ -738,6 +761,34 @@ const advanceCommand = () => {
     });
   };
 
+  const fadeScreen = (startFade, targetFade, duration) => {
+    return new Promise(resolve => {
+      const startTime = Date.now();
+      
+      console.log('🎬 Screen fade from', startFade.toFixed(2), 'to', targetFade.toFixed(2), 'in', duration, 'ms');
+      
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const currentFade = startFade + (targetFade - startFade) * progress;
+        
+        console.log('  ⏱️ Progress:', Math.round(progress * 100) + '%', 'Fade:', currentFade.toFixed(2));
+        
+        setScreenFade(currentFade);
+        setAnimationTick(prev => prev + 1); // ← AGGIUNGI: Force re-render
+        
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          console.log('✅ Screen fade complete');
+          resolve();
+        }
+      };
+      
+      requestAnimationFrame(animate);
+    });
+  };
+
   // ===== TYPEWRITER EFFECT =====
   useEffect(() => {
     if (!isPlaying) {
@@ -753,35 +804,73 @@ const advanceCommand = () => {
       setIsTyping(true);
       setDisplayedText('');
       
-      let index = 0;
-      let soundCounter = 0; // ← Counter per lettersound
+      const tokens = parseTextTokens(command.text);
+      let tokenIndex = 0;
+      let charIndex = 0;
+      let soundCounter = 0;
+      let isPaused = false;
       
-      const interval = setInterval(() => {
-        if (index < command.text.length) {
-          const char = command.text[index];
-          setDisplayedText(prev => prev + char);
+      const typeNextChar = () => {
+        if (isPaused) return;
+        
+        while (tokenIndex < tokens.length) {
+          const token = tokens[tokenIndex];
           
-          // Play letter sound every 2-3 characters (not spaces)
-          if (char !== ' ' && project.settings.letterSoundEnabled) {
-            soundCounter++;
-            if (soundCounter >= 2) { // ← Suona ogni 2 caratteri
-              const pitchVariation = (Math.random() - 0.5) * 0.2;
-              audioManager.playSystemSFX('lettersound', pitchVariation);
-              soundCounter = 0; // Reset counter
-            }
+          if (token.type === 'pause') {
+            // Pause typewriter
+            isPaused = true;
+            setTimeout(() => {
+              isPaused = false;
+              tokenIndex++;
+              charIndex = 0;
+              typeNextChar();
+            }, token.duration);
+            return;
           }
           
-          index++;
-        } else {
-          clearInterval(interval);
-          setIsTyping(false);
+          if (token.type === 'color') {
+            // Skip color tokens (handled in rendering)
+            tokenIndex++;
+            continue;
+          }
+          
+          if (token.type === 'text') {
+            if (charIndex < token.content.length) {
+              const char = token.content[charIndex];
+              setDisplayedText(prev => prev + char);
+              
+              // Letter sound
+              if (char !== ' ' && project.settings.letterSoundEnabled) {
+                soundCounter++;
+                if (soundCounter >= 2) {
+                  const pitchVariation = (Math.random() - 0.5) * 0.2;
+                  audioManager.playSystemSFX('lettersound', pitchVariation);
+                  soundCounter = 0;
+                }
+              }
+              
+              charIndex++;
+              return;
+            } else {
+              // Token complete, move to next
+              tokenIndex++;
+              charIndex = 0;
+              continue;
+            }
+          }
         }
-      }, 30); // 30ms per character
+        
+        // All tokens complete
+        clearInterval(interval);
+        setIsTyping(false);
+      };
+      
+      const interval = setInterval(typeNextChar, 30);
       
       // Store skip function
       typewriterSkipRef.current = () => {
         clearInterval(interval);
-        setDisplayedText(command.text);
+        setDisplayedText(getPlainText(command.text));
         setIsTyping(false);
       };
       
@@ -935,6 +1024,13 @@ const advanceCommand = () => {
           
           // Always draw scene indicator
           drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
+
+          /*if (screenFade > 0 || scene.startFadedOut) {
+            const fadeAmount = isPlaying ? screenFade : (scene.startFadedOut ? 1 : 0);
+            ctx.fillStyle = `rgba(0, 0, 0, ${fadeAmount})`;
+            ctx.fillRect(0, 0, 256, 192);
+          }*/
+
           isRenderingEditor.current = false;
         }
                 
@@ -954,6 +1050,11 @@ const advanceCommand = () => {
         offCtx.webkitImageSmoothingEnabled = false;
         offCtx.msImageSmoothingEnabled = false;
         offCtx.globalAlpha = 1;
+
+        if (screenFade > 0) {
+          offCtx.fillStyle = '#000';
+          offCtx.fillRect(0, 0, width, height);
+        }
 
         // BACKGROUND on offscreen
         if (scene.backgroundVisible !== false) {
@@ -979,6 +1080,20 @@ const advanceCommand = () => {
             (char.visible && char.sprite) ? loadImage(char.sprite) : Promise.resolve(null)
           )
         );
+
+        /*const charImages = screenFade < 1 ? await Promise.all(
+          scene.characters.map(char => 
+            (char.visible && char.sprite) ? loadImage(char.sprite) : Promise.resolve(null)
+          )
+        ) : [];
+
+        if (screenFade < 1) {
+          scene.characters.forEach((char, idx) => {
+            offCtx.drawImage(img, Math.floor(sourceX), 0, Math.floor(sourceWidth), img.height, charX, charY, sourceWidth, img.height);
+            offCtx.globalAlpha = 1;
+          });
+        }*/
+
 
         scene.characters.forEach((char, idx) => {
           if (!char.visible || !charImages[idx]) return;
@@ -1013,8 +1128,19 @@ const advanceCommand = () => {
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(offscreen, 0, 0);
 
+        if (screenFade > 0) {
+          ctx.fillStyle = `rgba(0, 0, 0, ${screenFade})`;
+          ctx.fillRect(0, 0, width, height);
+        }
+
         // UI on main canvas
         const command = scene.commands[currentCommandIndex];
+
+        if (screenFade >= 1) {
+          drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
+          return;
+        }
+
         if (!command || command.type !== 'dialogue') {
           drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, 'dogica, monospace');
           return;
@@ -1048,11 +1174,12 @@ const advanceCommand = () => {
           drawArrow(ctx, boxX, boxY, boxWidth, boxHeight, hasMore);
         }
         drawSceneIndicator(ctx, currentSceneIndex, project.scenes.length, fontFamily);
+
       };
 
       render();
 
-    }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity, isPlaying, animationTick, displayedText, isTyping]);
+    }, [project, currentSceneIndex, currentCommandIndex, backgroundOpacity, isPlaying, animationTick, displayedText, isTyping, screenFade]);
 
     const handleCanvasClick = (event) => {
       if (!isPlaying || isTransitioning) return;
@@ -1205,7 +1332,7 @@ const advanceCommand = () => {
   return (
     <div style={{ width: '100vw', height: '100vh', background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', display: 'flex', fontFamily: '"Courier New", monospace', color: '#e0e0e0', overflow: 'hidden' }}>
       <div style={{ width: '320px', background: 'rgba(15, 15, 25, 0.8)', borderRight: '2px solid #4a5568', overflowY: 'auto', padding: '16px' }}>
-        <h1 style={{ fontSize: '18px', color: '#f39c12', marginBottom: '8px' }}>Retronovel</h1>
+        <img src="/logo.png" alt="Retronovel" style={{ width: '200px', height: 'auto', marginBottom: '12px', display: 'block' }} />
         <input type="text" value={project.title} onChange={(e) => setProject({ ...project, title: e.target.value })} style={{ width: '100%', padding: '8px', background: '#2a2a3e', border: '1px solid #4a5568', color: '#fff', fontSize: '12px', fontFamily: 'inherit' }} />
         
         <div style={{ display: 'flex', gap: '4px', marginTop: '16px', marginBottom: '16px' }}>
@@ -1237,6 +1364,22 @@ const advanceCommand = () => {
               
               <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px' }}>Background Color:</label>
               <input type="color" value={scene.background} onChange={(e) => updateScene(currentSceneIndex, { background: e.target.value })} style={{ width: '100%', height: '32px', marginBottom: '12px' }} />
+
+              {/* Starting the scene faded out*/}
+              <label style={{ display: 'flex', alignItems: 'center', fontSize: '11px', color: '#888', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={scene.startFadedOut || false} 
+                  onChange={(e) => updateScene(currentSceneIndex, { startFadedOut: e.target.checked })} 
+                  style={{ marginRight: '8px' }} 
+                />
+                Start scene faded out (black screen)
+              </label>
+              {scene.startFadedOut && (
+                <div style={{ marginTop: '6px', fontSize: '9px', color: '#666', paddingLeft: '24px' }}>
+                  ℹ️ Use "Fade In Screen" command to reveal
+                </div>
+              )}
 
               <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px' }}>Initial Background Image:</label>
               <select value={scene.backgroundImage || ''} onChange={(e) => updateScene(currentSceneIndex, { backgroundImage: e.target.value || null, backgroundVisible: true })} style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit', marginBottom: '12px' }}>
@@ -1762,7 +1905,7 @@ const advanceCommand = () => {
         <button
           onClick={() => {
             if (!isPlaying) {
-              // ← AGGIUNGI: Reset characters in TUTTE le scene prima di play
+
               console.log('🧹 Resetting ALL scene characters before play');
               setProject(prevProject => {
                 const cleanedScenes = prevProject.scenes.map(scene => ({
@@ -1787,9 +1930,16 @@ const advanceCommand = () => {
                 
                 return { ...prevProject, scenes: cleanedScenes };
               });
-              
-              // Salva stato iniziale background (non characters)
+
               const scene = project.scenes[currentSceneIndex];
+              if (scene.startFadedOut) {
+                console.log('🌑 Scene starts faded out');
+                setScreenFade(1);
+              } else {
+                setScreenFade(0);
+              }
+                        
+              // Salva stato iniziale background (non characters)
               initialSceneState.current = {
                 backgroundImage: scene.backgroundImage,
                 backgroundVisible: scene.backgroundVisible

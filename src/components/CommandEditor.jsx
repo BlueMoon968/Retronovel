@@ -25,6 +25,8 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
       { type: 'setFlag', icon: '🚩', label: 'Set Flag' },
       { type: 'setVariable', icon: '🔢', label: 'Set Variable' },
       { type: 'callSharedCommand', icon: '📞', label: 'Call Shared Command' },
+      { type: 'fadeInScreen', icon: '☀️', label: 'Fade In Screen' },
+      { type: 'fadeOutScreen', icon: '🌑', label: 'Fade Out Screen' },
       { type: 'goto', icon: '➡️', label: 'Goto Scene' },
       { type: 'showCharacter', icon: '👤', label: 'Show/Change Character' },
       { type: 'hideCharacter', icon: '👻', label: 'Hide Character' },
@@ -126,7 +128,13 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
         newCommand.faded = false;
         newCommand.fadeDuration = 500;
         break;
-          }
+      case 'fadeInScreen': 
+        newCommand.duration = 2.0;
+        break;
+      case 'fadeOutScreen':
+        newCommand.duration = 2.0;
+        break;
+    }
 
     updateCommands([...commands, newCommand]);
     setShowCommandMenu(false);
@@ -405,6 +413,44 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
                     <input type="checkbox" checked={command.useTransition} onChange={(e) => updateCommand(cmdIdx, { useTransition: e.target.checked })} style={{ marginRight: '8px' }} />
                     Use transition effect
                   </label>
+                </>
+              )}
+
+              {/* FADE IN SCREEN */}
+              {command.type === 'fadeInScreen' && (
+                <>
+                  <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Duration (seconds):</label>
+                  <input 
+                    type="number" 
+                    min="0.1" 
+                    max="10" 
+                    step="0.1" 
+                    value={command.duration} 
+                    onChange={(e) => updateCommand(cmdIdx, { duration: parseFloat(e.target.value) })} 
+                    style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit' }} 
+                  />
+                  <div style={{ marginTop: '4px', padding: '8px', background: '#1a1a2e', border: '1px solid #4a5568', fontSize: '9px', color: '#666' }}>
+                    Fades from black to visible
+                  </div>
+                </>
+              )}
+
+              {/* FADE OUT SCREEN */}
+              {command.type === 'fadeOutScreen' && (
+                <>
+                  <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>Duration (seconds):</label>
+                  <input 
+                    type="number" 
+                    min="0.1" 
+                    max="10" 
+                    step="0.1" 
+                    value={command.duration} 
+                    onChange={(e) => updateCommand(cmdIdx, { duration: parseFloat(e.target.value) })} 
+                    style={{ width: '100%', padding: '6px', background: '#1a1a2e', border: '1px solid #4a5568', color: '#fff', fontSize: '11px', fontFamily: 'inherit' }} 
+                  />
+                  <div style={{ marginTop: '4px', padding: '8px', background: '#1a1a2e', border: '1px solid #4a5568', fontSize: '9px', color: '#666' }}>
+                    Fades to black screen
+                  </div>
                 </>
               )}
 

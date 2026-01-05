@@ -29,8 +29,41 @@ export const drawNinePatch = (ctx, image, x, y, width, height) => {
 };
 
 export const drawNameBox = (ctx, nameBoxImage, speaker, boxX, boxY, fontFamily) => {
+  // ← IMPORT parseTextTokens inline per evitare circular dependency
+  const parseTextTokens = (text) => {
+    const tokens = [];
+    let pos = 0;
+    let currentColor = '#ffffff';
+    
+    while (pos < text.length) {
+      if (text.substr(pos, 3) === '\\**') { pos += 3; continue; }
+      if (text.substr(pos, 2) === '\\*') { pos += 2; continue; }
+      
+      const colorMatch = text.substr(pos).match(/^\\c\[([#\w]+)\]/);
+      if (colorMatch) {
+        currentColor = colorMatch[1];
+        tokens.push({ type: 'color', color: currentColor });
+        pos += colorMatch[0].length;
+        continue;
+      }
+      
+      const lastToken = tokens[tokens.length - 1];
+      if (lastToken && lastToken.type === 'text' && lastToken.color === currentColor) {
+        lastToken.content += text[pos];
+      } else {
+        tokens.push({ type: 'text', content: text[pos], color: currentColor });
+      }
+      pos++;
+    }
+    return tokens;
+  };
+  
+  const getPlainText = (text) => text.replace(/\\\*\*/g, '').replace(/\\\*/g, '').replace(/\\c\[[#\w]+\]/g, '');
+  
+  if (!speaker || speaker.trim() === '') return;
+  
   ctx.font = 'bold 8px ' + fontFamily;
-  const nameWidth = ctx.measureText(speaker).width;
+  const nameWidth = ctx.measureText(getPlainText(speaker)).width;
   const nameBoxWidth = nameWidth + 16;
   const nameBoxHeight = 16;
   const nameBoxX = boxX + 4;
@@ -45,37 +78,90 @@ export const drawNameBox = (ctx, nameBoxImage, speaker, boxX, boxY, fontFamily) 
     ctx.strokeRect(nameBoxX, nameBoxY, nameBoxWidth, nameBoxHeight);
   }
   
-  // Speaker name
-  ctx.fillStyle = '#ffffff';
+  // ← Render speaker name with color support
+  const tokens = parseTextTokens(speaker);
+  let x = nameBoxX + 8;
   ctx.font = 'bold 8px ' + fontFamily;
-  ctx.fillText(speaker, nameBoxX + 8, nameBoxY + 11);
+  
+  tokens.forEach(token => {
+    if (token.type === 'color') {
+      // Color change
+    } else if (token.type === 'text') {
+      ctx.fillStyle = token.color;
+      ctx.fillText(token.content, x, nameBoxY + 11);
+      x += ctx.measureText(token.content).width;
+    }
+  });
 };
 
 export const drawDialogueText = (ctx, text, boxX, boxY, boxWidth, fontFamily) => {
-  ctx.fillStyle = '#ffffff';
+  // ← IMPORT functions inline
+  const parseTextTokens = (text) => {
+    const tokens = [];
+    let pos = 0;
+    let currentColor = '#ffffff';
+    
+    while (pos < text.length) {
+      if (text.substr(pos, 3) === '\\**') { pos += 3; continue; }
+      if (text.substr(pos, 2) === '\\*') { pos += 2; continue; }
+      
+      const colorMatch = text.substr(pos).match(/^\\c\[([#\w]+)\]/);
+      if (colorMatch) {
+        currentColor = colorMatch[1];
+        tokens.push({ type: 'color', color: currentColor });
+        pos += colorMatch[0].length;
+        continue;
+      }
+      
+      const lastToken = tokens[tokens.length - 1];
+      if (lastToken && lastToken.type === 'text' && lastToken.color === currentColor) {
+        lastToken.content += text[pos];
+      } else {
+        tokens.push({ type: 'text', content: text[pos], color: currentColor });
+      }
+      pos++;
+    }
+    return tokens;
+  };
+  
   ctx.font = '8px ' + fontFamily;
   
   const maxWidth = boxWidth - 16;
-  const words = text.split(' ');
-  let line = '';
+  let x = boxX + 8;
   let y = boxY + 16;
   const lineHeight = 12;
-
-  for (let word of words) {
-    const testLine = line + word + ' ';
-    const metrics = ctx.measureText(testLine);
-    
-    if (metrics.width > maxWidth && line !== '') {
-      ctx.fillText(line, boxX + 8, y);
-      line = word + ' ';
-      y += lineHeight;
-    } else {
-      line = testLine;
-    }
-  }
-  ctx.fillText(line, boxX + 8, y);
+  let currentLineWidth = 0;
+  let currentColor = '#ffffff';
   
-  return y;
+  const tokens = parseTextTokens(text);
+  
+  tokens.forEach(token => {
+    if (token.type === 'color') {
+      currentColor = token.color;
+      return;
+    }
+    
+    if (token.type === 'text') {
+      const words = token.content.split(' ');
+      
+      words.forEach((word, idx) => {
+        const wordWithSpace = idx < words.length - 1 ? word + ' ' : word;
+        const wordWidth = ctx.measureText(wordWithSpace).width;
+        
+        if (currentLineWidth + wordWidth > maxWidth && currentLineWidth > 0) {
+          // New line
+          x = boxX + 8;
+          y += lineHeight;
+          currentLineWidth = 0;
+        }
+        
+        ctx.fillStyle = currentColor;
+        ctx.fillText(wordWithSpace, x, y);
+        x += wordWidth;
+        currentLineWidth += wordWidth;
+      });
+    }
+  });
 };
 
 export const drawChoices = (ctx, dialogue, canvasWidth, canvasHeight, fontFamily) => {
