@@ -605,6 +605,26 @@ const VNEditor = () => {
       await fadeScreen(currentFade, 1, command.duration * 1000);
       if (!insideBranch) advanceCommand();
     }
+    // CHECKPOINT (non fa nulla, è solo un marker)
+    else if (command.type === 'checkpoint') {
+      if (!insideBranch) advanceCommand();
+    }
+    // GOTO CHECKPOINT
+    else if (command.type === 'gotoCheckpoint') {
+      const scene = project.scenes[currentSceneIndex];
+      const targetCheckpoint = scene.commands.findIndex(cmd => 
+        cmd.type === 'checkpoint' && cmd.name === command.checkpointName
+      );
+      
+      if (targetCheckpoint !== -1) {
+        console.log('⤴️ Jumping to checkpoint:', command.checkpointName, 'at index', targetCheckpoint);
+        setCurrentCommandIndex(targetCheckpoint);
+        // Non chiama advanceCommand perché ha già settato il nuovo indice
+      } else {
+        console.warn('⚠️ Checkpoint not found:', command.checkpointName);
+        if (!insideBranch) advanceCommand();
+      }
+    }
     
     // I dialoghi NON chiamano MAI advanceCommand (aspettano il click)
   };

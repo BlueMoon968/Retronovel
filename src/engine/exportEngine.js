@@ -10,6 +10,15 @@ export const generateGameHTML = (project) => {
   const scale = project.settings.scale || 2;
   const displayWidth = 256 * scale;
   const displayHeight = 192 * scale;
+
+  const cleanProject = {
+    ...project,
+    scenes: project.scenes.map(scene => ({
+      ...scene,
+      commands: scene.commands.filter(cmd => cmd.type !== 'note')
+    }))
+  };
+  
   
   const fontFaceCSS = project.settings.customFont 
     ? `@font-face {
@@ -70,7 +79,7 @@ export const generateGameHTML = (project) => {
     <canvas id="game" width="256" height="192"></canvas>
   </div>
   <script>
-    const gameData = ${JSON.stringify(project, null, 2)};
+    const gameData = ${JSON.stringify(cleanProject, null, 2)};
     
     // Render functions
     ${exportRenderFunctions()}

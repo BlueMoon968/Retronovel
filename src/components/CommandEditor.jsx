@@ -25,6 +25,8 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
       { type: 'setFlag', icon: '🚩', label: 'Set Flag' },
       { type: 'setVariable', icon: '🔢', label: 'Set Variable' },
       { type: 'callSharedCommand', icon: '📞', label: 'Call Shared Command' },
+      { type: 'checkpoint', icon: '🏁', label: 'Checkpoint' },
+      { type: 'gotoCheckpoint', icon: '⤴️', label: 'Go to Checkpoint' },
       { type: 'fadeInScreen', icon: '☀️', label: 'Fade In Screen' },
       { type: 'fadeOutScreen', icon: '🌑', label: 'Fade Out Screen' },
       { type: 'goto', icon: '➡️', label: 'Goto Scene' },
@@ -41,6 +43,9 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
       { type: 'stopBGS', icon: '⏹️', label: 'Stop BGS' },
       { type: 'fadeBGS', icon: '🔉', label: 'Fade BGS' },
       { type: 'playSFX', icon: '🔔', label: 'Play SFX' }
+    ],
+    'Others': [
+      { type: 'note', icon: '📝', label: 'Note (Comment)' }
     ]
   };
 
@@ -79,6 +84,12 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
         newCommand.operation = 'set'; // set, add, subtract
       case 'callSharedCommand':  // ← AGGIUNGI
         newCommand.sharedCommandId = sharedCommands.length > 0 ? sharedCommands[0].id : null;
+        break;
+      case 'checkpoint':
+        newCommand.name = 'checkpoint_1';
+        break;
+      case 'gotoCheckpoint':
+        newCommand.checkpointName = '';
         break;
       case 'goto':
         newCommand.targetScene = Math.min(sceneIndex + 1, totalScenes - 1);
@@ -135,6 +146,9 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
       case 'fadeOutScreen':
         newCommand.duration = 2.0;
         break;
+      case 'note':
+        newCommand.text = 'Your note here...';
+        break;
     }
 
     updateCommands([...commands, newCommand]);
@@ -189,6 +203,9 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
     if (command.type === 'playBGM') return `Play BGM`;
     if (command.type === 'playBGS') return `Play BGS`;
     if (command.type === 'playSFX') return `Play SFX`;
+    if (command.type === 'note') return `Note: ${command.text.substring(0, 40)}...`;
+    if (command.type === 'checkpoint') return `Checkpoint: ${command.name}`;
+    if (command.type === 'gotoCheckpoint') return `Go to: ${command.checkpointName || '(none)'}`;
     return command.type;
   };
 
@@ -433,6 +450,101 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
                 </>
               )}
 
+              {/* CHECKPOINT */}
+              {command.type === 'checkpoint' && (
+                <>
+                  <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                    Checkpoint Name:
+                  </label>
+                  <input 
+                    type="text" 
+                    value={command.name} 
+                    onChange={(e) => updateCommand(cmdIdx, { name: e.target.value })} 
+                    placeholder="e.g. after_choice_A"
+                    style={{ 
+                      width: '100%', 
+                      padding: '6px', 
+                      background: '#1a1a2e', 
+                      border: '1px solid #27ae60', 
+                      color: '#27ae60', 
+                      fontSize: '11px', 
+                      fontFamily: 'inherit',
+                      marginBottom: '8px'
+                    }} 
+                  />
+                  <div style={{ 
+                    padding: '8px', 
+                    background: '#1a1a2e', 
+                    border: '1px solid #27ae60', 
+                    fontSize: '9px', 
+                    color: '#27ae60' 
+                  }}>
+                    🏁 This creates a jump point. Use "Go to Checkpoint" to return here.
+                  </div>
+                </>
+              )}
+
+              {/* GOTO CHECKPOINT */}
+              {command.type === 'gotoCheckpoint' && (
+                <>
+                  <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                    Target Checkpoint:
+                  </label>
+                  <select 
+                    value={command.checkpointName || ''} 
+                    onChange={(e) => updateCommand(cmdIdx, { checkpointName: e.target.value })} 
+                    style={{ 
+                      width: '100%', 
+                      padding: '6px', 
+                      background: '#1a1a2e', 
+                      border: '1px solid #3498db', 
+                      color: '#fff', 
+                      fontSize: '11px', 
+                      fontFamily: 'inherit',
+                      marginBottom: '8px'
+                    }}
+                  >
+                    {(() => {
+                      const checkpoints = commands.filter(cmd => cmd.type === 'checkpoint');
+                      if (checkpoints.length === 0) {
+                        return <option value="">-- No checkpoints in this scene --</option>;
+                      }
+                      return (
+                        <>
+                          <option value="">-- Select checkpoint --</option>
+                          {checkpoints.map(cp => (
+                            <option key={cp.id} value={cp.name}>{cp.name}</option>
+                          ))}
+                        </>
+                      );
+                    })()}
+                  </select>
+                  {command.checkpointName && (
+                    <div style={{ 
+                      padding: '8px', 
+                      background: '#1a1a2e', 
+                      border: '1px solid #3498db', 
+                      fontSize: '9px', 
+                      color: '#3498db' 
+                    }}>
+                      ⤴️ Will jump to checkpoint "{command.checkpointName}" and continue from there
+                    </div>
+                  )}
+                  {commands.filter(cmd => cmd.type === 'checkpoint').length === 0 && (
+                    <div style={{ 
+                      padding: '8px', 
+                      background: '#1a1a2e', 
+                      border: '1px solid #666', 
+                      fontSize: '9px', 
+                      color: '#666',
+                      textAlign: 'center'
+                    }}>
+                      Create a checkpoint first to jump to it
+                    </div>
+                  )}
+                </>
+              )}
+
               {/* GOTO COMMAND */}
               {command.type === 'goto' && (
                 <>
@@ -662,6 +774,32 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
                 </>
               )}
 
+              {/* NOTE COMMAND */}
+              {command.type === 'note' && (
+                <div style={{ background: '#2a2a1e', border: '1px dashed #f39c12', padding: '8px' }}>
+                  <div style={{ fontSize: '9px', color: '#f39c12', marginBottom: '4px' }}>
+                    📝 This is a comment - not processed during gameplay
+                  </div>
+                  <textarea 
+                    value={command.text} 
+                    onChange={(e) => updateCommand(cmdIdx, { text: e.target.value })} 
+                    placeholder="Write your notes here..."
+                    rows="3" 
+                    style={{ 
+                      width: '100%', 
+                      padding: '6px', 
+                      background: '#1a1a1e', 
+                      border: '1px solid #f39c12', 
+                      color: '#f39c12', 
+                      fontSize: '10px', 
+                      resize: 'vertical', 
+                      fontFamily: 'inherit',
+                      fontStyle: 'italic'
+                    }} 
+                  />
+                </div>
+              )}
+
               {/* HIDE BACKGROUND */}
               {command.type === 'hideBackground' && (
                 <>
@@ -679,7 +817,9 @@ const CommandEditor = ({ commands, sceneIndex, updateCommands, totalScenes, flag
                 </>
               )}
             </>
+
           )}
+
         </div>
       ))}
 
